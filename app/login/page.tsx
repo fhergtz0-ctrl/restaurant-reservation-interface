@@ -5,7 +5,7 @@ import { AuthShell } from "@/components/auth/auth-shell"
 import { LoginForm } from "@/components/auth/login-form"
 
 export const metadata: Metadata = {
-  title: "Sign in · Nabiaa Reservations",
+  title: "Sign in · K'áanche",
   description: "Sign in to manage your restaurant reservations.",
 }
 

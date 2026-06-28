@@ -203,7 +203,7 @@ export function MobileDrawer({
         )}
         <div className="border-t border-border px-5 py-2.5">
           <p className="text-[11px] text-muted-foreground">
-            Powered by Nabiaa
+            Powered by K&apos;áanche
           </p>
         </div>
       </aside>

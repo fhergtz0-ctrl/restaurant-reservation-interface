@@ -205,7 +205,7 @@ export function Sidebar({
         <p
           className={`text-[11px] text-muted-foreground ${collapsed ? "text-center" : ""}`}
         >
-          {collapsed ? "N" : "Powered by Nabiaa"}
+          {collapsed ? "K" : "Powered by K'áanche"}
         </p>
       </div>
     </aside>

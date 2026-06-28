@@ -368,6 +368,6 @@ export function ReservationsView() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   )
 }
