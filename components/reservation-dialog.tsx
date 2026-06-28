@@ -58,7 +58,6 @@ export function ReservationDialog({
 
   // Reset transient state when the dialog closes.
   function handleOpenChange(next: boolean) {
-    console.log("[v0] handleOpenChange:", next)
     if (!next) {
       // Delay reset until the close animation completes.
       setTimeout(() => {
@@ -76,7 +75,6 @@ export function ReservationDialog({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    console.log("[v0] handleSubmit fired")
     setStatus("submitting")
     setErrorMessage(null)
 
