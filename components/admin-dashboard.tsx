@@ -268,25 +268,25 @@ export function AdminDashboard() {
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiCard
             icon={CalendarCheckIcon}
-            label="Reservations today"
+            label="Reservations Today"
             value={loading ? null : String(kpis.reservationCount)}
           />
           <KpiCard
             icon={UsersIcon}
-            label="Total guests"
+            label="Total Guests"
             value={loading ? null : String(kpis.totalGuests)}
             hint="Confirmed & seated"
           />
           <KpiCard
             icon={Table2Icon}
-            label="Tables occupied"
+            label="Occupied Tables"
             value={
               loading ? null : `${kpis.occupiedTables}/${kpis.activeTables}`
             }
           />
           <KpiCard
             icon={TrendingUpIcon}
-            label="Busiest time"
+            label="Peak Hour"
             value={loading ? null : (kpis.busiestTime ?? "—")}
           />
         </section>
