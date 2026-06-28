@@ -3,9 +3,13 @@
 import { MapPinIcon, MinusIcon, NavigationIcon, PlusIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { restaurant } from "@/lib/reservation-data"
+import { defaultRestaurant, type RestaurantProfile } from "@/lib/restaurants"
 
-export function RestaurantMap() {
+export function RestaurantMap({
+  restaurant = defaultRestaurant,
+}: {
+  restaurant?: RestaurantProfile
+}) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-muted">
       {/* Map imagery (swaps with color scheme) */}
@@ -68,7 +72,7 @@ export function RestaurantMap() {
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">
-            {restaurant.neighborhood}
+            {restaurant.location}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             127 Prince Street · 0.4 mi away

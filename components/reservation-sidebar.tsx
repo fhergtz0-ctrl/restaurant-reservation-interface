@@ -15,10 +15,14 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import {
   dateOptions,
   getSlotTimes,
-  restaurant,
   timePreferences,
   type Slot,
 } from "@/lib/reservation-data"
+import {
+  defaultRestaurant,
+  restaurantInitials,
+  type RestaurantProfile,
+} from "@/lib/restaurants"
 
 function SidebarHeaderSkeleton() {
   return (
@@ -32,7 +36,11 @@ function SidebarHeaderSkeleton() {
   )
 }
 
-export function ReservationSidebar() {
+export function ReservationSidebar({
+  restaurant = defaultRestaurant,
+}: {
+  restaurant?: RestaurantProfile
+}) {
   const [pageLoading, setPageLoading] = React.useState(true)
   const [slotsLoading, setSlotsLoading] = React.useState(false)
 
@@ -56,6 +64,7 @@ export function ReservationSidebar() {
     try {
       const params = new URLSearchParams({
         restaurant: restaurant.name,
+        restaurantSlug: restaurant.slug,
         date,
         guests: String(guests),
         preference,
@@ -76,7 +85,7 @@ export function ReservationSidebar() {
     } finally {
       setSlotsLoading(false)
     }
-  }, [date, guests, preference])
+  }, [date, guests, preference, restaurant.name, restaurant.slug])
 
   // Refetch availability whenever the selection changes.
   React.useEffect(() => {
@@ -104,24 +113,26 @@ export function ReservationSidebar() {
           <div className="flex items-center gap-3">
             <Avatar className="size-14 rounded-2xl ring-1 ring-border">
               <AvatarImage src={restaurant.logo} alt={`${restaurant.name} logo`} />
-              <AvatarFallback className="rounded-2xl">ML</AvatarFallback>
+              <AvatarFallback className="rounded-2xl">
+                {restaurantInitials(restaurant.name)}
+              </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
                 {restaurant.name}
               </h1>
               <p className="truncate text-sm text-muted-foreground">
-                {restaurant.category}
+                {restaurant.description}
               </p>
               <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1 font-medium text-foreground">
                   <StarIcon className="size-3.5 fill-primary text-primary" />
-                  4.8
+                  {restaurant.rating.toFixed(1)}
                 </span>
                 <span aria-hidden>·</span>
                 <span>{restaurant.priceRange}</span>
                 <span aria-hidden>·</span>
-                <span className="truncate">{restaurant.neighborhood}</span>
+                <span className="truncate">{restaurant.location}</span>
               </div>
             </div>
           </div>
@@ -198,6 +209,7 @@ export function ReservationSidebar() {
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           restaurant={restaurant.name}
+          restaurantSlug={restaurant.slug}
           guests={guests}
           date={date}
           dateLabel={selectedDateLabel ?? date}

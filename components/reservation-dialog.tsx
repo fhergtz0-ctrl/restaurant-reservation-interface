@@ -28,6 +28,7 @@ type ReservationDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   restaurant: string
+  restaurantSlug?: string
   guests: number
   date: string
   dateLabel: string
@@ -41,6 +42,7 @@ export function ReservationDialog({
   open,
   onOpenChange,
   restaurant,
+  restaurantSlug,
   guests,
   date,
   dateLabel,
@@ -86,6 +88,7 @@ export function ReservationDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           restaurant,
+          restaurantSlug,
           customerName: name,
           phone,
           email,

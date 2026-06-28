@@ -7,20 +7,30 @@ import {
   pickAvailableTable,
 } from "@/lib/tables"
 import { getSlotTimes, getSlots } from "@/lib/reservation-data"
+import { getRestaurantBySlug } from "@/lib/restaurants"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const restaurant = searchParams.get("restaurant")
+  const restaurantParam = searchParams.get("restaurant")
+  const restaurantSlug = searchParams.get("restaurantSlug")
   const date = searchParams.get("date")
   const preference = searchParams.get("preference") ?? "dinner"
   const guestsParam = Number.parseInt(searchParams.get("guests") ?? "2", 10)
   const guests = Number.isFinite(guestsParam) ? guestsParam : 2
 
+  // Accept either restaurant (display name) or restaurantSlug. The table
+  // helpers key off restaurant_name, so resolve a slug to its name.
+  let restaurant = restaurantParam
+  if (!restaurant && restaurantSlug) {
+    const profile = await getRestaurantBySlug(restaurantSlug)
+    restaurant = profile?.name ?? null
+  }
+
   if (!restaurant || !date) {
     return NextResponse.json(
-      { error: "restaurant and date are required." },
+      { error: "restaurant (or restaurantSlug) and date are required." },
       { status: 400 },
     )
   }

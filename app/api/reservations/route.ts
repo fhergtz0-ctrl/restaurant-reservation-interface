@@ -6,9 +6,11 @@ import {
   getBookedTableIdsByTime,
   pickAvailableTable,
 } from "@/lib/tables"
+import { getRestaurantBySlug } from "@/lib/restaurants"
 
 type ReservationRequestBody = {
   restaurant?: unknown
+  restaurantSlug?: unknown
   customerName?: unknown
   phone?: unknown
   email?: unknown
@@ -70,9 +72,20 @@ export async function POST(request: Request) {
     )
   }
 
-  const restaurantName = isNonEmptyString(body.restaurant)
+  // Prefer the slug internally (resolves restaurant_id), but stay backward
+  // compatible with a restaurant display name.
+  let restaurantName = isNonEmptyString(body.restaurant)
     ? body.restaurant.trim()
     : null
+  let restaurantId: string | null = null
+
+  if (isNonEmptyString(body.restaurantSlug)) {
+    const profile = await getRestaurantBySlug(body.restaurantSlug.trim())
+    if (profile) {
+      restaurantId = profile.id
+      if (!restaurantName) restaurantName = profile.name
+    }
+  }
 
   // Automatically assign the smallest available table for this slot.
   let assignedTableId: string | null = null
@@ -112,6 +125,9 @@ export async function POST(request: Request) {
     .from("reservations")
     .insert({
       restaurant_name: restaurantName,
+      // Only set restaurant_id when resolved; the column exists once the
+      // multi-restaurant migration has been applied.
+      ...(restaurantId ? { restaurant_id: restaurantId } : {}),
       customer_name: body.customerName.trim(),
       customer_phone: body.phone.trim(),
       customer_email: isNonEmptyString(body.email) ? body.email.trim() : null,
