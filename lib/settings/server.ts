@@ -27,6 +27,9 @@ export type SettingsGuard =
 /** Postgres error code for "relation/column does not exist". */
 const UNDEFINED = new Set(["42P01", "42703"])
 
+/** Postgres error code for "row violates row-level security policy". */
+const RLS_VIOLATION = "42501"
+
 export function isMissingSchema(err: { code?: string } | null): boolean {
   return Boolean(err?.code && UNDEFINED.has(err.code))
 }
@@ -215,7 +218,15 @@ export async function saveKvSection<K extends KvSectionKey>(
           "Settings storage isn't set up yet. Run scripts/005_settings_center.sql, then try again.",
       }
     }
-    console.log("[v0] saveKvSection error:", error.message)
+    if (error.code === RLS_VIOLATION) {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          "Settings storage is blocked by row-level security. Run scripts/006_settings_rls_fix.sql, then try again.",
+      }
+    }
+    console.log("[v0] saveKvSection error:", error.message, error.code)
     return { ok: false, status: 500, error: "Could not save settings." }
   }
   return { ok: true }
