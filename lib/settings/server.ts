@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { getSupabaseClient } from "@/lib/supabase"
+import { defaultRestaurant } from "@/lib/restaurants"
 import {
   KV_SECTIONS,
   parseSection,
@@ -26,13 +27,122 @@ export type SettingsGuard =
 /** Postgres error code for "relation/column does not exist". */
 const UNDEFINED = new Set(["42P01", "42703"])
 
+/** Postgres error code for "row violates row-level security policy". */
+const RLS_VIOLATION = "42501"
+
 export function isMissingSchema(err: { code?: string } | null): boolean {
   return Boolean(err?.code && UNDEFINED.has(err.code))
 }
 
+const UUID_RE = /^[0-9a-f-]{36}$/i
+
+/** "maison-laurent" -> "Maison Laurent" (used when seeding a fresh record). */
+function titleizeSlug(slug: string): string {
+  return (
+    slug
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ") || "My Restaurant"
+  )
+}
+
+/** "My Restaurant" -> "my-restaurant" (used when only a name is provided). */
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "restaurant"
+  )
+}
+
+/**
+ * Find the restaurant matching the given id/slug/name, creating it on demand
+ * when it does not exist yet. This guarantees the first workspace always has a
+ * persisted `restaurants` row (the KV/list tables require a valid FK), so
+ * Settings never 404s and Save Changes can always succeed.
+ */
+async function findOrCreateRestaurant(
+  supabase: SupabaseClient,
+  params: { id?: string | null; slug?: string | null; name?: string | null },
+): Promise<{ ok: true; id: string } | { ok: false; status: number; error: string }> {
+  // 1. Explicit uuid — trust it only if the row actually exists.
+  if (params.id && UUID_RE.test(params.id)) {
+    const { data, error } = await supabase
+      .from("restaurants")
+      .select("id")
+      .eq("id", params.id)
+      .maybeSingle()
+    if (error && !isMissingSchema(error)) {
+      console.log("[v0] findOrCreateRestaurant id lookup error:", error.message)
+    }
+    if (data) return { ok: true, id: data.id as string }
+    // Otherwise fall through to resolve/seed by slug or name.
+  }
+
+  const slug = params.slug?.trim() || null
+  const name = params.name?.trim() || null
+  if (!slug && !name) {
+    return { ok: false, status: 400, error: "A restaurant is required." }
+  }
+
+  // 2. Look up an existing row by slug (preferred) or name.
+  const column = slug ? "slug" : "name"
+  const value = (slug ?? name) as string
+  const { data: found, error: findErr } = await supabase
+    .from("restaurants")
+    .select("id")
+    .eq(column, value)
+    .maybeSingle()
+
+  if (findErr) {
+    console.log("[v0] findOrCreateRestaurant find error:", findErr.message)
+    return { ok: false, status: 500, error: "Could not resolve the restaurant." }
+  }
+  if (found) return { ok: true, id: found.id as string }
+
+  // 3. Nothing exists yet — auto-seed so onboarding always has a record.
+  const seedSlug = slug ?? slugify(name as string)
+  const isDefault = seedSlug === defaultRestaurant.slug
+  const seed: Record<string, unknown> = {
+    name: name ?? (isDefault ? defaultRestaurant.name : titleizeSlug(seedSlug)),
+    slug: seedSlug,
+    active: true,
+  }
+  if (isDefault) {
+    seed.description = defaultRestaurant.description
+    seed.location = defaultRestaurant.location
+  }
+
+  const { data: created, error: createErr } = await supabase
+    .from("restaurants")
+    .upsert(seed, { onConflict: "slug" })
+    .select("id")
+    .maybeSingle()
+
+  if (created) return { ok: true, id: created.id as string }
+
+  // 4. A concurrent request may have created it first — re-select by slug.
+  const { data: retry } = await supabase
+    .from("restaurants")
+    .select("id")
+    .eq("slug", seedSlug)
+    .maybeSingle()
+  if (retry) return { ok: true, id: retry.id as string }
+
+  console.log(
+    "[v0] findOrCreateRestaurant seed error:",
+    createErr?.message ?? "unknown",
+  )
+  return { ok: false, status: 500, error: "Could not create the restaurant." }
+}
+
 /**
  * Resolve the restaurant id from a slug, name, or explicit id passed by the
- * client, returning a ready-to-use context or an error status.
+ * client, returning a ready-to-use context or an error status. Auto-creates
+ * the restaurant when missing so the first workspace never 404s.
  */
 export async function resolveSettingsContext(params: {
   id?: string | null
@@ -49,31 +159,9 @@ export async function resolveSettingsContext(params: {
     }
   }
 
-  // Prefer an explicit uuid.
-  if (params.id && /^[0-9a-f-]{36}$/i.test(params.id)) {
-    return { ok: true, ctx: { supabase, restaurantId: params.id } }
-  }
-
-  const column = params.slug ? "slug" : "name"
-  const value = params.slug ?? params.name
-  if (!value) {
-    return { ok: false, status: 400, error: "A restaurant is required." }
-  }
-
-  const { data, error } = await supabase
-    .from("restaurants")
-    .select("id")
-    .eq(column, value)
-    .maybeSingle()
-
-  if (error) {
-    console.log("[v0] resolveSettingsContext error:", error.message)
-    return { ok: false, status: 500, error: "Could not resolve the restaurant." }
-  }
-  if (!data) {
-    return { ok: false, status: 404, error: "Restaurant not found." }
-  }
-  return { ok: true, ctx: { supabase, restaurantId: data.id as string } }
+  const result = await findOrCreateRestaurant(supabase, params)
+  if (!result.ok) return result
+  return { ok: true, ctx: { supabase, restaurantId: result.id } }
 }
 
 /** Load and validate one KV section, applying defaults for missing fields. */
@@ -130,7 +218,15 @@ export async function saveKvSection<K extends KvSectionKey>(
           "Settings storage isn't set up yet. Run scripts/005_settings_center.sql, then try again.",
       }
     }
-    console.log("[v0] saveKvSection error:", error.message)
+    if (error.code === RLS_VIOLATION) {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          "Settings storage is blocked by row-level security. Run scripts/006_settings_rls_fix.sql, then try again.",
+      }
+    }
+    console.log("[v0] saveKvSection error:", error.message, error.code)
     return { ok: false, status: 500, error: "Could not save settings." }
   }
   return { ok: true }
