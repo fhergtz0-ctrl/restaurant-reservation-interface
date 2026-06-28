@@ -13,6 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AccountMenu } from "@/components/auth/account-menu"
+import { getSessionProfile } from "@/lib/auth"
 import {
   getActiveRestaurants,
   getTodayReservationCounts,
@@ -28,9 +30,10 @@ export const metadata: Metadata = {
 }
 
 export default async function DashboardPage() {
-  const [restaurants, counts] = await Promise.all([
+  const [restaurants, counts, profile] = await Promise.all([
     getActiveRestaurants(),
     getTodayReservationCounts(),
+    getSessionProfile(),
   ])
 
   return (
@@ -51,7 +54,10 @@ export default async function DashboardPage() {
               from a single workspace.
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <AccountMenu profile={profile} />
+            <ThemeToggle />
+          </div>
         </header>
 
         {/* Restaurants */}

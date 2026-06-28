@@ -123,7 +123,11 @@ function QuickActions({
   )
 }
 
-export function AdminDashboard() {
+export function AdminDashboard({
+  accountSlot,
+}: {
+  accountSlot?: React.ReactNode
+}) {
   const [date, setDate] = React.useState(todayValue)
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
   const [timeFilter, setTimeFilter] = React.useState<string>("all")
@@ -338,6 +342,7 @@ export function AdminDashboard() {
               />
               Refresh
             </Button>
+            {accountSlot}
             <ThemeToggle />
           </div>
         </header>
