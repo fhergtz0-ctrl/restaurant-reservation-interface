@@ -73,7 +73,10 @@ export function ReservationSelectors({
 
       <div className="flex flex-col gap-1.5">
         <FieldLabel icon={CalendarIcon}>Date</FieldLabel>
-        <Select value={date} onValueChange={onDateChange}>
+        <Select
+          value={date}
+          onValueChange={(value) => onDateChange(value ?? date)}
+        >
           <SelectTrigger className="h-10 w-full">
             <SelectValue />
           </SelectTrigger>
@@ -91,7 +94,10 @@ export function ReservationSelectors({
 
       <div className="flex flex-col gap-1.5">
         <FieldLabel icon={ClockIcon}>Time</FieldLabel>
-        <Select value={preference} onValueChange={onPreferenceChange}>
+        <Select
+          value={preference}
+          onValueChange={(value) => onPreferenceChange(value ?? preference)}
+        >
           <SelectTrigger className="h-10 w-full">
             <SelectValue />
           </SelectTrigger>
