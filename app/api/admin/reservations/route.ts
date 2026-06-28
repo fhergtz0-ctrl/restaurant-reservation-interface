@@ -6,6 +6,7 @@ import {
   timeToMinutes,
   type AdminReservation,
 } from "@/lib/admin-data"
+import { getRestaurantBySlug } from "@/lib/restaurants"
 
 type ReservationRow = {
   id: string
@@ -42,6 +43,17 @@ export async function GET(request: Request) {
   const date = searchParams.get("date")
   const status = searchParams.get("status")
   const time = searchParams.get("time")
+  const restaurant = searchParams.get("restaurant")
+  const restaurantSlug = searchParams.get("restaurantSlug")
+
+  // Resolve a per-restaurant name filter from either the display name or slug.
+  let restaurantName: string | null = isNonEmptyString(restaurant)
+    ? restaurant
+    : null
+  if (!restaurantName && isNonEmptyString(restaurantSlug)) {
+    const profile = await getRestaurantBySlug(restaurantSlug)
+    restaurantName = profile?.name ?? null
+  }
 
   let query = supabase
     .from("reservations")
@@ -49,6 +61,9 @@ export async function GET(request: Request) {
       "id, restaurant_name, guests, reservation_date, reservation_time, customer_name, customer_phone, customer_email, notes, status, table_id, tables(name)",
     )
 
+  if (restaurantName) {
+    query = query.eq("restaurant_name", restaurantName)
+  }
   if (isNonEmptyString(date)) {
     query = query.eq("reservation_date", date)
   }
