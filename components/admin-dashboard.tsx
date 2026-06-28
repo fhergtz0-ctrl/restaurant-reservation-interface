@@ -287,7 +287,7 @@ export function AdminDashboard({
     statusFilter !== "all" || timeFilter !== "all" || search.trim() !== ""
 
   return (
-    <main className="min-h-dvh bg-background text-foreground">
+    <main className="min-h-dvh bg-background pb-24 text-foreground lg:pb-0">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
         {/* Header */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -304,12 +304,15 @@ export function AdminDashboard({
               .
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
               value={selectedSlug}
               onValueChange={(v) => setSelectedSlug(v ?? selectedSlug)}
             >
-              <SelectTrigger className="h-9 w-[200px]" aria-label="Restaurant">
+              <SelectTrigger
+                className="h-9 w-full min-w-[160px] flex-1 sm:w-[200px] sm:flex-none"
+                aria-label="Restaurant"
+              >
                 <span className="flex items-center gap-2">
                   <StoreIcon className="size-4 text-primary" />
                   <SelectValue>

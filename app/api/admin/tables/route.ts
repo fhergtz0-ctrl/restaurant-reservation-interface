@@ -18,18 +18,29 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const restaurant = searchParams.get("restaurant")
 
-  let query = supabase
-    .from("tables")
-    .select("id, name, capacity")
-    .eq("active", true)
-    .order("capacity", { ascending: true })
-    .order("name", { ascending: true })
+  // Try the full select (with floor-plan columns). If the zone/blocked
+  // columns don't exist yet (migration 004 not applied), fall back to the
+  // base columns so the page keeps working.
+  async function runQuery(columns: string) {
+    let query = supabase!
+      .from("tables")
+      .select(columns)
+      .eq("active", true)
+      .order("capacity", { ascending: true })
+      .order("name", { ascending: true })
 
-  if (restaurant && restaurant.trim().length > 0) {
-    query = query.eq("restaurant_name", restaurant)
+    if (restaurant && restaurant.trim().length > 0) {
+      query = query.eq("restaurant_name", restaurant)
+    }
+    return query
   }
 
-  const { data, error } = await query
+  let { data, error } = await runQuery("id, name, capacity, zone, blocked")
+
+  // 42703 = undefined_column. Retry without the optional floor-plan columns.
+  if (error && error.code === "42703") {
+    ;({ data, error } = await runQuery("id, name, capacity"))
+  }
 
   if (error) {
     console.log("[v0] Admin tables fetch error:", error.message)
@@ -39,6 +50,14 @@ export async function GET(request: Request) {
     )
   }
 
-  const tables: AdminTable[] = (data ?? []) as AdminTable[]
+  const tables: AdminTable[] = ((data ?? []) as unknown as AdminTable[]).map(
+    (t) => ({
+      id: t.id,
+      name: t.name,
+      capacity: t.capacity,
+      zone: t.zone ?? null,
+      blocked: t.blocked ?? false,
+    }),
+  )
   return NextResponse.json({ tables })
 }

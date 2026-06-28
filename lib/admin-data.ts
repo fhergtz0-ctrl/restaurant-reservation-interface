@@ -64,6 +64,10 @@ export type AdminTable = {
   id: string
   name: string
   capacity: number
+  /** Optional visual grouping (Main Dining, Terrace, VIP, ...). */
+  zone?: string | null
+  /** Whether the table is taken out of service on the floor plan. */
+  blocked?: boolean | null
 }
 
 /** Statuses that actively occupy a table for a service. */
@@ -137,30 +141,76 @@ export type TableBooking = {
   status: ReservationStatus
 }
 
+export type TableBookingWithId = TableBooking & {
+  id: string
+  guests: number
+  phone: string | null
+}
+
 export type TableStatus = {
   id: string
   name: string
   capacity: number
+  zone: string
+  blocked: boolean
   occupied: boolean
-  bookings: TableBooking[]
+  bookings: TableBookingWithId[]
+}
+
+/** The four floor-plan states, in legend order. */
+export const FLOOR_STATUSES = [
+  "available",
+  "reserved",
+  "occupied",
+  "blocked",
+] as const
+
+export type FloorStatus = (typeof FLOOR_STATUSES)[number]
+
+export const DEFAULT_ZONE = "Main Dining"
+
+/** Preferred display order for zones; unknown zones sort alphabetically after. */
+export const ZONE_ORDER = [
+  "Main Dining",
+  "Terrace",
+  "VIP",
+  "Bar",
+  "Private Room",
+] as const
+
+/**
+ * Derive the floor-plan state for a table:
+ * - blocked: explicitly out of service
+ * - occupied: a guest is currently seated
+ * - reserved: has upcoming active bookings but nobody seated yet
+ * - available: no active bookings
+ */
+export function floorStatusOf(t: TableStatus): FloorStatus {
+  if (t.blocked) return "blocked"
+  if (t.bookings.some((b) => b.status === "seated")) return "occupied"
+  if (t.bookings.length > 0) return "reserved"
+  return "available"
 }
 
 /**
- * Determine, for the selected date, which active tables are occupied.
- * A table is "occupied" when it has at least one active reservation that day.
+ * Determine, for the selected date, the floor status of each active table,
+ * including its zone, blocked flag, and chronologically-sorted bookings.
  */
 export function computeTableStatuses(
   tables: AdminTable[],
   reservations: AdminReservation[],
 ): TableStatus[] {
-  const bookingsByTable = new Map<string, TableBooking[]>()
+  const bookingsByTable = new Map<string, TableBookingWithId[]>()
   for (const r of reservations) {
     if (!r.table_id || !isActiveReservation(r)) continue
     if (!bookingsByTable.has(r.table_id)) bookingsByTable.set(r.table_id, [])
     bookingsByTable.get(r.table_id)!.push({
+      id: r.id,
       time: r.reservation_time,
       customer: r.customer_name,
       status: r.status,
+      guests: r.guests,
+      phone: r.customer_phone,
     })
   }
 
@@ -172,8 +222,78 @@ export function computeTableStatuses(
       id: t.id,
       name: t.name,
       capacity: t.capacity,
+      zone: t.zone?.trim() || DEFAULT_ZONE,
+      blocked: Boolean(t.blocked),
       occupied: bookings.length > 0,
       bookings,
     }
   })
+}
+
+/** Group table statuses by zone, ordered by ZONE_ORDER then alphabetically. */
+export function groupTablesByZone(
+  statuses: TableStatus[],
+): { zone: string; tables: TableStatus[] }[] {
+  const byZone = new Map<string, TableStatus[]>()
+  for (const t of statuses) {
+    if (!byZone.has(t.zone)) byZone.set(t.zone, [])
+    byZone.get(t.zone)!.push(t)
+  }
+
+  const orderIndex = (zone: string) => {
+    const i = (ZONE_ORDER as readonly string[]).indexOf(zone)
+    return i === -1 ? ZONE_ORDER.length : i
+  }
+
+  return Array.from(byZone.entries())
+    .sort(([a], [b]) => {
+      const diff = orderIndex(a) - orderIndex(b)
+      return diff !== 0 ? diff : a.localeCompare(b)
+    })
+    .map(([zone, tables]) => ({ zone, tables }))
+}
+
+/** Occupancy summary across the floor. */
+export type FloorSummary = {
+  total: number
+  available: number
+  reserved: number
+  occupied: number
+  blocked: number
+  /** Percentage of in-service tables that are reserved or occupied. */
+  occupancyPct: number
+}
+
+export function computeFloorSummary(statuses: TableStatus[]): FloorSummary {
+  let available = 0
+  let reserved = 0
+  let occupied = 0
+  let blocked = 0
+  for (const t of statuses) {
+    switch (floorStatusOf(t)) {
+      case "available":
+        available += 1
+        break
+      case "reserved":
+        reserved += 1
+        break
+      case "occupied":
+        occupied += 1
+        break
+      case "blocked":
+        blocked += 1
+        break
+    }
+  }
+  const inService = available + reserved + occupied
+  const occupancyPct =
+    inService > 0 ? Math.round(((reserved + occupied) / inService) * 100) : 0
+  return {
+    total: statuses.length,
+    available,
+    reserved,
+    occupied,
+    blocked,
+    occupancyPct,
+  }
 }
