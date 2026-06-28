@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 
 import { getSupabaseClient } from "@/lib/supabase"
+import {
+  getEligibleTables,
+  getBookedTableIdsByTime,
+  pickAvailableTable,
+} from "@/lib/tables"
 
 type ReservationRequestBody = {
   restaurant?: unknown
@@ -65,12 +70,48 @@ export async function POST(request: Request) {
     )
   }
 
+  const restaurantName = isNonEmptyString(body.restaurant)
+    ? body.restaurant.trim()
+    : null
+
+  // Automatically assign the smallest available table for this slot.
+  let assignedTableId: string | null = null
+  if (restaurantName) {
+    try {
+      const [eligibleTables, bookedByTime] = await Promise.all([
+        getEligibleTables(supabase, restaurantName, guests),
+        getBookedTableIdsByTime(supabase, restaurantName, body.date),
+      ])
+
+      const table = pickAvailableTable(
+        eligibleTables,
+        bookedByTime.get(body.time),
+      )
+
+      if (!table) {
+        return NextResponse.json(
+          { error: "No tables available for this time." },
+          { status: 409 },
+        )
+      }
+
+      assignedTableId = table.id
+    } catch (lookupError) {
+      console.log(
+        "[v0] Table assignment error:",
+        lookupError instanceof Error ? lookupError.message : lookupError,
+      )
+      return NextResponse.json(
+        { error: "We couldn't save your reservation. Please try again." },
+        { status: 500 },
+      )
+    }
+  }
+
   const { data, error } = await supabase
     .from("reservations")
     .insert({
-      restaurant_name: isNonEmptyString(body.restaurant)
-        ? body.restaurant.trim()
-        : null,
+      restaurant_name: restaurantName,
       customer_name: body.customerName.trim(),
       customer_phone: body.phone.trim(),
       customer_email: isNonEmptyString(body.email) ? body.email.trim() : null,
@@ -78,12 +119,20 @@ export async function POST(request: Request) {
       guests,
       reservation_date: body.date,
       reservation_time: body.time,
+      table_id: assignedTableId,
       status: "confirmed",
     })
     .select("id")
     .single()
 
   if (error) {
+    // 23505 = unique violation: the table was taken by a concurrent booking.
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "No tables available for this time." },
+        { status: 409 },
+      )
+    }
     console.log("[v0] Supabase insert error:", error.message)
     return NextResponse.json(
       { error: "We couldn't save your reservation. Please try again." },
