@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ReservationSelectors } from "@/components/reservation-selectors"
+import { ReservationDialog } from "@/components/reservation-dialog"
 import { TimeSlotGrid } from "@/components/time-slot-grid"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -40,6 +41,7 @@ export function ReservationSidebar() {
   const [preference, setPreference] = React.useState(timePreferences[2].value)
   const [selectedTime, setSelectedTime] = React.useState<string | null>(null)
   const [slots, setSlots] = React.useState<Slot[]>([])
+  const [dialogOpen, setDialogOpen] = React.useState(false)
 
   // Initial page load.
   React.useEffect(() => {
@@ -162,10 +164,23 @@ export function ReservationSidebar() {
           size="lg"
           className="h-12 w-full rounded-xl text-base"
           disabled={!selectedTime || pageLoading}
+          onClick={() => setDialogOpen(true)}
         >
           Continue
         </Button>
       </div>
+
+      {selectedTime && (
+        <ReservationDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          restaurant={restaurant.name}
+          guests={guests}
+          date={date}
+          dateLabel={selectedDateLabel ?? date}
+          time={selectedTime}
+        />
+      )}
     </aside>
   )
 }
