@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AccountMenu } from "@/components/auth/account-menu"
+import { AppChrome } from "@/components/app-nav/app-chrome"
 import { getSessionProfile } from "@/lib/auth"
 import {
   getActiveRestaurants,
@@ -36,35 +37,49 @@ export default async function DashboardPage() {
     getSessionProfile(),
   ])
 
+  // The "active" restaurant: the signed-in user's, else the first one.
+  const activeRestaurant =
+    restaurants.find((r) => r.name === profile?.restaurantName) ??
+    restaurants[0] ??
+    null
+
   return (
-    <main className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
+    <main className="min-h-dvh bg-background pb-24 text-foreground lg:pb-0">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:gap-8 md:px-8 md:py-12">
         {/* Header */}
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-2">
             <Badge variant="secondary" className="w-fit gap-1.5">
               <LayoutDashboardIcon className="size-3.5 text-primary" />
               Platform
             </Badge>
-            <h1 className="font-heading text-3xl font-semibold tracking-tight text-balance">
+            <h1 className="font-heading text-2xl font-semibold tracking-tight text-balance md:text-3xl">
               Nabiaa Reservations
             </h1>
-            <p className="max-w-prose text-sm text-muted-foreground">
+            <p className="hidden max-w-prose text-sm text-muted-foreground sm:block">
               Manage every restaurant, its bookings, and its public booking page
               from a single workspace.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <AccountMenu profile={profile} />
             <ThemeToggle />
           </div>
         </header>
 
+        {/* Active restaurant hero */}
+        {activeRestaurant && (
+          <ActiveRestaurantHero
+            restaurant={activeRestaurant}
+            todayCount={counts[activeRestaurant.name] ?? 0}
+          />
+        )}
+
         {/* Restaurants */}
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="font-heading text-lg font-semibold tracking-tight">
-              Active restaurants
+              All restaurants
             </h2>
             <span className="text-sm text-muted-foreground">
               {restaurants.length}{" "}
@@ -109,7 +124,89 @@ export default async function DashboardPage() {
           </div>
         </section>
       </div>
+
+      <AppChrome profile={profile} />
     </main>
+  )
+}
+
+function ActiveRestaurantHero({
+  restaurant,
+  todayCount,
+}: {
+  restaurant: RestaurantProfile
+  todayCount: number
+}) {
+  return (
+    <section className="flex flex-col gap-5 rounded-3xl border border-border bg-card p-5 md:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <span className="flex size-2 rounded-full bg-emerald-500" />
+          Active restaurant
+        </span>
+        <Badge variant="secondary">{restaurant.priceRange}</Badge>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <Avatar className="size-16 rounded-2xl ring-1 ring-border">
+          <AvatarImage
+            src={restaurant.logo || "/placeholder.svg"}
+            alt={`${restaurant.name} logo`}
+          />
+          <AvatarFallback className="rounded-2xl text-lg">
+            {restaurantInitials(restaurant.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="truncate font-heading text-2xl font-semibold tracking-tight">
+            {restaurant.name}
+          </h2>
+          <p className="flex items-center gap-1 truncate text-sm text-muted-foreground">
+            <MapPinIcon className="size-4 shrink-0 text-primary" />
+            {restaurant.location}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/40 px-4 py-3">
+        <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+          <CalendarCheckIcon className="size-5 text-primary" />
+        </span>
+        <div className="flex flex-col">
+          <span className="font-heading text-2xl font-semibold tracking-tight">
+            {todayCount}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {todayCount === 1 ? "reservation" : "reservations"} today
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Link
+          href="/admin"
+          className={buttonVariants({
+            variant: "default",
+            size: "lg",
+            className: "h-12 flex-1 gap-2 text-base",
+          })}
+        >
+          <SettingsIcon className="size-5" />
+          Open admin
+        </Link>
+        <Link
+          href={`/r/${restaurant.slug}`}
+          className={buttonVariants({
+            variant: "outline",
+            size: "lg",
+            className: "h-12 flex-1 gap-2 text-base",
+          })}
+        >
+          <ExternalLinkIcon className="size-5" />
+          Open booking page
+        </Link>
+      </div>
+    </section>
   )
 }
 

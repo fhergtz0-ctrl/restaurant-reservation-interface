@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { AdminDashboard } from "@/components/admin-dashboard"
+import { TablesView } from "@/components/tables-view"
 import { AccountMenu } from "@/components/auth/account-menu"
 import { AppChrome } from "@/components/app-nav/app-chrome"
 import { getSessionProfile } from "@/lib/auth"
@@ -8,16 +8,16 @@ import { getSessionProfile } from "@/lib/auth"
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-  title: "Admin · Reservations",
-  description: "Manage reservations across your restaurants.",
+  title: "Tables · Floor plan",
+  description: "Live table status across your dining room.",
 }
 
-export default async function AdminPage() {
+export default async function TablesPage() {
   const profile = await getSessionProfile()
 
   return (
     <>
-      <AdminDashboard accountSlot={<AccountMenu profile={profile} />} />
+      <TablesView accountSlot={<AccountMenu profile={profile} />} />
       <AppChrome profile={profile} />
     </>
   )

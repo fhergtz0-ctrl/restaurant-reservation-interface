@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { AdminDashboard } from "@/components/admin-dashboard"
+import { CalendarView } from "@/components/calendar-view"
 import { AccountMenu } from "@/components/auth/account-menu"
 import { AppChrome } from "@/components/app-nav/app-chrome"
 import { getSessionProfile } from "@/lib/auth"
@@ -8,16 +8,16 @@ import { getSessionProfile } from "@/lib/auth"
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-  title: "Admin · Reservations",
-  description: "Manage reservations across your restaurants.",
+  title: "Calendar · Reservations",
+  description: "View the day's reservations on a timeline.",
 }
 
-export default async function AdminPage() {
+export default async function CalendarPage() {
   const profile = await getSessionProfile()
 
   return (
     <>
-      <AdminDashboard accountSlot={<AccountMenu profile={profile} />} />
+      <CalendarView accountSlot={<AccountMenu profile={profile} />} />
       <AppChrome profile={profile} />
     </>
   )
