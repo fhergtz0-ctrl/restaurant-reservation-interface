@@ -1,5 +1,7 @@
 import {
   BarChart3Icon,
+  BellIcon,
+  BuildingIcon,
   CalendarIcon,
   CalendarCheckIcon,
   ClockIcon,
@@ -7,13 +9,18 @@ import {
   CreditCardIcon,
   CrownIcon,
   ExternalLinkIcon,
+  GlobeIcon,
+  HistoryIcon,
   LayoutDashboardIcon,
   LayoutGridIcon,
+  MailIcon,
   MapIcon,
   PaletteIcon,
+  PlugIcon,
   RadioIcon,
   Rows3Icon,
-  SettingsIcon,
+  SlidersHorizontalIcon,
+  SparklesIcon,
   StarIcon,
   StickyNoteIcon,
   UsersIcon,
@@ -79,8 +86,17 @@ export const navSections: WorkspaceNavSection[] = [
   {
     title: "Restaurant",
     items: [
-      { label: "Settings", href: "/settings", icon: SettingsIcon },
-      { label: "Branding", href: "/branding", icon: PaletteIcon },
+      { label: "Restaurant Profile", href: "/settings/profile", icon: BuildingIcon },
+      { label: "Contact", href: "/settings/contact", icon: MailIcon },
+      { label: "Branding", href: "/settings/branding", icon: PaletteIcon },
+      {
+        label: "Reservation Rules",
+        href: "/settings/reservations",
+        icon: SlidersHorizontalIcon,
+      },
+      { label: "Experiences", href: "/settings/experiences", icon: SparklesIcon },
+      { label: "Notifications", href: "/settings/notifications", icon: BellIcon },
+      { label: "Online Booking", href: "/settings/online-booking", icon: GlobeIcon },
       {
         label: "Public Booking Page",
         icon: ExternalLinkIcon,
@@ -89,11 +105,22 @@ export const navSections: WorkspaceNavSection[] = [
     ],
   },
   {
+    title: "Administration",
+    items: [
+      { label: "Team & Roles", href: "/settings/team", icon: UsersRoundIcon },
+      { label: "Integrations", href: "/settings/integrations", icon: PlugIcon },
+      { label: "Audit Log", href: "/settings/audit", icon: HistoryIcon },
+    ],
+  },
+  {
     title: "Business",
     items: [
       { label: "Reports", href: "/reports", icon: BarChart3Icon },
-      { label: "Team", href: "/team", icon: UsersRoundIcon },
-      { label: "Subscription", href: "/subscription", icon: CreditCardIcon },
+      {
+        label: "Billing & Subscription",
+        href: "/settings/billing",
+        icon: CreditCardIcon,
+      },
     ],
   },
 ]

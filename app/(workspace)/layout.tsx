@@ -1,6 +1,7 @@
 import type React from "react"
 
 import { AppShell } from "@/components/app-shell/app-shell"
+import { ToastProvider } from "@/components/ui/toast"
 import { getSessionProfile } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
@@ -17,5 +18,9 @@ export default async function WorkspaceLayout({
 }) {
   const profile = await getSessionProfile()
 
-  return <AppShell profile={profile}>{children}</AppShell>
+  return (
+    <ToastProvider>
+      <AppShell profile={profile}>{children}</AppShell>
+    </ToastProvider>
+  )
 }
