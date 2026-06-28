@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { ClockIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function SchedulePage() {
   return (
     <ModulePlaceholder
       badge="Planning"
-      icon={ClockIcon}
       title="Schedule"
       subtitle="Set service hours and booking availability windows."
       bullets={[

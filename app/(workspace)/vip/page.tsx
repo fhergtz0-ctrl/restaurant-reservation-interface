@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { CrownIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function VipPage() {
   return (
     <ModulePlaceholder
       badge="Guests"
-      icon={CrownIcon}
       title="VIP"
       subtitle="Recognize and prioritize your most valued guests."
       bullets={[

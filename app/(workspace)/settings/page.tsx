@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { SettingsIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function SettingsPage() {
   return (
     <ModulePlaceholder
       badge="Restaurant"
-      icon={SettingsIcon}
       title="Settings"
       subtitle="Configure your restaurant profile and booking preferences."
       bullets={[

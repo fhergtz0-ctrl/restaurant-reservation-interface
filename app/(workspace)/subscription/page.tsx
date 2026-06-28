@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { CreditCardIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function SubscriptionPage() {
   return (
     <ModulePlaceholder
       badge="Business"
-      icon={CreditCardIcon}
       title="Subscription"
       subtitle="Manage your K'áanche plan, billing, and invoices."
       bullets={[

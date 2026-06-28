@@ -1,24 +1,31 @@
 "use client"
 
-import type { LucideIcon } from "lucide-react"
+import { usePathname } from "next/navigation"
 import { ConstructionIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { PageHeader } from "@/components/app-nav/page-header"
+import { navSections } from "@/components/app-shell/nav"
 
 export function ModulePlaceholder({
   badge,
-  icon,
   title,
   subtitle,
   bullets,
 }: {
   badge: string
-  icon: LucideIcon
   title: string
   subtitle: string
   bullets: string[]
 }) {
+  // Resolve the icon from the nav config on the client, so Server Component
+  // pages only pass serializable props (no function across the boundary).
+  const pathname = usePathname()
+  const navItem = navSections
+    .flatMap((s) => s.items)
+    .find((item) => item.href === pathname)
+  const icon = navItem?.icon ?? ConstructionIcon
+
   return (
     <div className="text-foreground">
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">

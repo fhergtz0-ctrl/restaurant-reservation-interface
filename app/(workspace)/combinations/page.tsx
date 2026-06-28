@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { CombineIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function CombinationsPage() {
   return (
     <ModulePlaceholder
       badge="Planning"
-      icon={CombineIcon}
       title="Table Combinations"
       subtitle="Define how tables join together for larger parties."
       bullets={[

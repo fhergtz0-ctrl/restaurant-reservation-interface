@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { PaletteIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function BrandingPage() {
   return (
     <ModulePlaceholder
       badge="Restaurant"
-      icon={PaletteIcon}
       title="Branding"
       subtitle="Customize how your public booking page looks and feels."
       bullets={[

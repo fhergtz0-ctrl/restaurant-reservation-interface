@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { BarChart3Icon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function ReportsPage() {
   return (
     <ModulePlaceholder
       badge="Business"
-      icon={BarChart3Icon}
       title="Reports"
       subtitle="Understand performance across covers, revenue, and trends."
       bullets={[

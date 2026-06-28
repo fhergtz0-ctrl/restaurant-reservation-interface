@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { MapIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function SpacesPage() {
   return (
     <ModulePlaceholder
       badge="Planning"
-      icon={MapIcon}
       title="Spaces / Zones"
       subtitle="Organize your venue into dining zones and areas."
       bullets={[

@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { StickyNoteIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function NotesPage() {
   return (
     <ModulePlaceholder
       badge="Guests"
-      icon={StickyNoteIcon}
       title="Notes"
       subtitle="Shared internal notes about guests and reservations."
       bullets={[

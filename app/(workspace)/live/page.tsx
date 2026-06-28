@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { RadioIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function LivePage() {
   return (
     <ModulePlaceholder
       badge="Live"
-      icon={RadioIcon}
       title="K'áanche Live"
       subtitle="Real-time floor and reservation pulse for the current service."
       bullets={[

@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { UsersRoundIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function TeamPage() {
   return (
     <ModulePlaceholder
       badge="Business"
-      icon={UsersRoundIcon}
       title="Team"
       subtitle="Manage staff access and roles across your restaurant."
       bullets={[

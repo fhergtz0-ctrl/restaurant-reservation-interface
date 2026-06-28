@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { UsersIcon } from "lucide-react"
 
 import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
 
@@ -11,7 +10,6 @@ export default function GuestsPage() {
   return (
     <ModulePlaceholder
       badge="Guests"
-      icon={UsersIcon}
       title="Guest List"
       subtitle="A unified profile for every diner who books with you."
       bullets={[
