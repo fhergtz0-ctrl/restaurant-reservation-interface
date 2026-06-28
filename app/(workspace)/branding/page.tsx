@@ -1,25 +1,5 @@
-import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-import { ModulePlaceholder } from "@/components/app-shell/module-placeholder"
-
-export const metadata: Metadata = {
-  title: "Branding · K'áanche",
-}
-
-export default function BrandingPage() {
-  return (
-    <ModulePlaceholder
-      badge="Restaurant"
-      title="Branding"
-      subtitle="Customize how your public booking page looks and feels."
-      bullets={[
-        "Logo and brand colors",
-        "Cover imagery and gallery",
-        "Booking page copy and tone",
-        "Custom domain",
-        "Confirmation email styling",
-        "Social and SEO previews",
-      ]}
-    />
-  )
+export default function BrandingRedirect() {
+  redirect("/settings/branding")
 }
