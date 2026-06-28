@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { LogOutIcon, UtensilsCrossedIcon, XIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -10,20 +11,21 @@ import { Button } from "@/components/ui/button"
 import { signOutAction } from "@/app/actions/auth"
 import { restaurantInitials } from "@/lib/restaurants"
 import type { SessionProfile } from "@/lib/auth"
-import { drawerItems, isActivePath } from "./nav-config"
+import { useRestaurants } from "./restaurant-context"
+import { navSections, isActivePath } from "./nav"
 
 export function MobileDrawer({
   open,
   onClose,
-  pathname,
   profile,
 }: {
   open: boolean
   onClose: () => void
-  pathname: string
   profile: SessionProfile | null
 }) {
-  // Lock body scroll while the drawer is open.
+  const pathname = usePathname()
+  const { selected } = useRestaurants()
+
   React.useEffect(() => {
     if (!open) return
     const previous = document.body.style.overflow
@@ -33,7 +35,6 @@ export function MobileDrawer({
     }
   }, [open])
 
-  // Close on Escape.
   React.useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
@@ -48,7 +49,6 @@ export function MobileDrawer({
       className={`fixed inset-0 z-50 lg:hidden ${open ? "" : "pointer-events-none"}`}
       aria-hidden={!open}
     >
-      {/* Scrim */}
       <button
         type="button"
         aria-label="Close menu"
@@ -58,7 +58,6 @@ export function MobileDrawer({
         }`}
       />
 
-      {/* Panel */}
       <aside
         role="dialog"
         aria-modal="true"
@@ -76,8 +75,13 @@ export function MobileDrawer({
             <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10">
               <UtensilsCrossedIcon className="size-5 text-primary" />
             </span>
-            <span className="font-heading text-base font-semibold tracking-tight">
-              Nabiaa
+            <span className="flex flex-col leading-tight">
+              <span className="font-heading text-base font-semibold tracking-tight">
+                K&apos;áanche
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                Operations Platform
+              </span>
             </span>
           </Link>
           <Button
@@ -112,39 +116,63 @@ export function MobileDrawer({
           </div>
         )}
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
-            {drawerItems.map((item, index) => {
-              const active = isActivePath(pathname, item.href)
-              const Icon = item.icon
-              const content = (
-                <>
-                  <Icon className="size-5 shrink-0" />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.soon && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Soon
-                    </span>
-                  )}
-                </>
-              )
-              const base =
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+        <nav className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="flex flex-col gap-3">
+            {navSections.map((section) => (
+              <div key={section.title} className="flex flex-col gap-1">
+                <p className="px-3 pb-0.5 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {section.title}
+                </p>
+                {section.items.map((item) => {
+                  const Icon = item.icon
+                  const active = isActivePath(pathname, item.href)
+                  const content = (
+                    <>
+                      <Icon className="size-[18px] shrink-0" />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.soon && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          Soon
+                        </span>
+                      )}
+                    </>
+                  )
+                  const cls =
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
 
-              return (
-                <li key={`${item.label}-${index}`}>
-                  {item.soon || !item.href ? (
-                    <span
-                      aria-disabled
-                      className={`${base} cursor-not-allowed text-muted-foreground/70`}
-                    >
-                      {content}
-                    </span>
-                  ) : (
+                  if (item.bookingPage) {
+                    return (
+                      <Link
+                        key={item.label}
+                        href={selected ? `/r/${selected.slug}` : "/dashboard"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onClose}
+                        className={`${cls} text-foreground hover:bg-muted`}
+                      >
+                        {content}
+                      </Link>
+                    )
+                  }
+
+                  if (item.soon || !item.href) {
+                    return (
+                      <span
+                        key={item.label}
+                        aria-disabled
+                        className={`${cls} cursor-not-allowed text-muted-foreground/60`}
+                      >
+                        {content}
+                      </span>
+                    )
+                  }
+
+                  return (
                     <Link
+                      key={item.label}
                       href={item.href}
                       onClick={onClose}
-                      className={`${base} ${
+                      className={`${cls} ${
                         active
                           ? "bg-primary/10 text-primary"
                           : "text-foreground hover:bg-muted"
@@ -152,11 +180,11 @@ export function MobileDrawer({
                     >
                       {content}
                     </Link>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
         </nav>
 
         {profile && (
@@ -168,11 +196,16 @@ export function MobileDrawer({
                 className="w-full justify-start gap-3"
               >
                 <LogOutIcon className="size-4" />
-                Cerrar sesión
+                Sign out
               </Button>
             </form>
           </div>
         )}
+        <div className="border-t border-border px-5 py-2.5">
+          <p className="text-[11px] text-muted-foreground">
+            Powered by K&apos;áanche
+          </p>
+        </div>
       </aside>
     </div>
   )

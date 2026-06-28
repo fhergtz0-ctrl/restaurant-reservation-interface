@@ -56,13 +56,8 @@ function formatLongDate(value: string): string {
   })
 }
 
-export function CalendarView({
-  accountSlot,
-}: {
-  accountSlot?: React.ReactNode
-}) {
-  const { restaurants, selectedSlug, setSelectedSlug, selected } =
-    useRestaurantSelector()
+export function CalendarView() {
+  const { selected } = useRestaurantSelector()
   const [date, setDate] = React.useState(todayValue)
   const [reservations, setReservations] = React.useState<AdminReservation[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -119,17 +114,13 @@ export function CalendarView({
     .reduce((sum, r) => sum + r.guests, 0)
 
   return (
-    <main className="min-h-dvh bg-background pb-24 text-foreground lg:pb-0">
+    <div className="text-foreground">
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
         <PageHeader
           badge="Calendar"
           icon={CalendarIcon}
           title="Day timeline"
           subtitle={`Reservations for ${selected?.name ?? "your restaurant"}.`}
-          restaurants={restaurants}
-          selectedSlug={selectedSlug}
-          onSelect={setSelectedSlug}
-          accountSlot={accountSlot}
         >
           <div className="flex items-center gap-1.5">
             <Button
@@ -264,6 +255,6 @@ export function CalendarView({
           </div>
         )}
       </div>
-    </main>
+    </div>
   )
 }

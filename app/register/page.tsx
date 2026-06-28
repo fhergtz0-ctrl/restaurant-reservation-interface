@@ -5,7 +5,7 @@ import { AuthShell } from "@/components/auth/auth-shell"
 import { RegisterForm } from "@/components/auth/register-form"
 
 export const metadata: Metadata = {
-  title: "Create your restaurant · Nabiaa Reservations",
+  title: "Create your restaurant · K'áanche",
   description: "Set up your restaurant and start taking reservations.",
 }
 

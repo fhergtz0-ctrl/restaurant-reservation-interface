@@ -14,7 +14,6 @@ import {
   AlertCircleIcon,
   CalendarX2Icon,
   SearchIcon,
-  StoreIcon,
   TrendingUpIcon,
   ArmchairIcon,
   UserXIcon,
@@ -37,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { getSlotTimes, timePreferences } from "@/lib/reservation-data"
 import {
   RESERVATION_STATUSES,
@@ -49,10 +47,7 @@ import {
   type ReservationStatus,
   type TableStatus,
 } from "@/lib/admin-data"
-import {
-  DEFAULT_RESTAURANT_SLUG,
-  type RestaurantProfile,
-} from "@/lib/restaurants"
+import { useRestaurantSelector } from "@/hooks/use-restaurant-selector"
 
 const ALL_TIMES: string[] = Array.from(
   new Set(timePreferences.flatMap((p) => getSlotTimes(p.value))),
@@ -123,61 +118,20 @@ function QuickActions({
   )
 }
 
-export function AdminDashboard({
-  accountSlot,
-}: {
-  accountSlot?: React.ReactNode
-}) {
+export function AdminDashboard() {
   const [date, setDate] = React.useState(todayValue)
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
   const [timeFilter, setTimeFilter] = React.useState<string>("all")
   const [search, setSearch] = React.useState("")
 
-  const [restaurants, setRestaurants] = React.useState<RestaurantProfile[]>([])
-  const [selectedSlug, setSelectedSlug] = React.useState(
-    DEFAULT_RESTAURANT_SLUG,
-  )
+  // Restaurant selection is driven by the global workspace header.
+  const { selected: selectedRestaurant } = useRestaurantSelector()
 
   const [reservations, setReservations] = React.useState<AdminReservation[]>([])
   const [tables, setTables] = React.useState<AdminTable[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [updatingId, setUpdatingId] = React.useState<string | null>(null)
-
-  const selectedRestaurant = React.useMemo(
-    () =>
-      restaurants.find((r) => r.slug === selectedSlug) ?? restaurants[0] ?? null,
-    [restaurants, selectedSlug],
-  )
-
-  // Load the list of restaurants once for the selector.
-  React.useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const response = await fetch("/api/admin/restaurants")
-        const payload = (await response.json()) as {
-          restaurants?: RestaurantProfile[]
-        }
-        if (cancelled) return
-        const list = payload.restaurants ?? []
-        setRestaurants(list)
-        if (list.length > 0 && !list.some((r) => r.slug === selectedSlug)) {
-          setSelectedSlug(list[0].slug)
-        }
-      } catch (err) {
-        console.log(
-          "[v0] Restaurants fetch error:",
-          err instanceof Error ? err.message : err,
-        )
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // Only on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const load = React.useCallback(async () => {
     if (!selectedRestaurant) return
@@ -287,7 +241,7 @@ export function AdminDashboard({
     statusFilter !== "all" || timeFilter !== "all" || search.trim() !== ""
 
   return (
-    <main className="min-h-dvh bg-background pb-24 text-foreground lg:pb-0">
+    <div className="text-foreground">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
         {/* Header */}
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -305,34 +259,6 @@ export function AdminDashboard({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={selectedSlug}
-              onValueChange={(v) => setSelectedSlug(v ?? selectedSlug)}
-            >
-              <SelectTrigger
-                className="h-9 w-full min-w-[160px] flex-1 sm:w-[200px] sm:flex-none"
-                aria-label="Restaurant"
-              >
-                <span className="flex items-center gap-2">
-                  <StoreIcon className="size-4 text-primary" />
-                  <SelectValue>
-                    {(value) =>
-                      restaurants.find((r) => r.slug === value)?.name ??
-                      "Select restaurant"
-                    }
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {restaurants.map((r) => (
-                    <SelectItem key={r.slug} value={r.slug}>
-                      {r.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
             <Button
               variant="outline"
               size="sm"
@@ -345,8 +271,6 @@ export function AdminDashboard({
               />
               Refresh
             </Button>
-            {accountSlot}
-            <ThemeToggle />
           </div>
         </header>
 
@@ -513,7 +437,7 @@ export function AdminDashboard({
           />
         )}
       </div>
-    </main>
+    </div>
   )
 }
 

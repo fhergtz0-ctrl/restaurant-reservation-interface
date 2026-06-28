@@ -136,9 +136,8 @@ function ToastViewport({
 /* Main view                                                           */
 /* ------------------------------------------------------------------ */
 
-export function TablesView({ accountSlot }: { accountSlot?: React.ReactNode }) {
-  const { restaurants, selectedSlug, setSelectedSlug, selected } =
-    useRestaurantSelector()
+export function TablesView() {
+  const { selected } = useRestaurantSelector()
   const [date, setDate] = React.useState(todayValue)
   const [tables, setTables] = React.useState<AdminTable[]>([])
   const [reservations, setReservations] = React.useState<AdminReservation[]>([])
@@ -385,17 +384,13 @@ export function TablesView({ accountSlot }: { accountSlot?: React.ReactNode }) {
   )
 
   return (
-    <main className="min-h-dvh bg-background pb-24 text-foreground lg:pb-0">
+    <div className="text-foreground">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
         <PageHeader
           badge="Floor plan"
           icon={LayoutGridIcon}
           title="Tables"
           subtitle={`Live floor plan for ${selected?.name ?? "your restaurant"}.`}
-          restaurants={restaurants}
-          selectedSlug={selectedSlug}
-          onSelect={setSelectedSlug}
-          accountSlot={accountSlot}
         >
           <Input
             type="date"
@@ -527,7 +522,7 @@ export function TablesView({ accountSlot }: { accountSlot?: React.ReactNode }) {
       />
 
       <ToastViewport toasts={toasts} onDismiss={dismissToast} />
-    </main>
+    </div>
   )
 }
 

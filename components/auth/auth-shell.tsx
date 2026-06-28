@@ -33,7 +33,7 @@ export function AuthShell({
           </span>
           <div className="flex flex-col gap-1">
             <p className="font-heading text-lg font-semibold tracking-tight">
-              Nabiaa Reservations
+              K&apos;áanche
             </p>
             <p className="text-xs text-muted-foreground">
               Restaurant management platform

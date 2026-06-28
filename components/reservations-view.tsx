@@ -68,13 +68,8 @@ function StatusBadge({ status }: { status: ReservationStatus }) {
   )
 }
 
-export function ReservationsView({
-  accountSlot,
-}: {
-  accountSlot?: React.ReactNode
-}) {
-  const { restaurants, selectedSlug, setSelectedSlug, selected } =
-    useRestaurantSelector()
+export function ReservationsView() {
+  const { selected } = useRestaurantSelector()
   const [date, setDate] = React.useState(todayValue)
   const [statusFilter, setStatusFilter] = React.useState<string>("all")
   const [search, setSearch] = React.useState("")
@@ -162,17 +157,13 @@ export function ReservationsView({
   const hasActiveFilters = statusFilter !== "all" || search.trim() !== ""
 
   return (
-    <main className="min-h-dvh bg-background pb-24 text-foreground lg:pb-0">
+    <div className="text-foreground">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
         <PageHeader
           badge="Reservations"
           icon={CalendarCheckIcon}
           title="Reservations"
           subtitle={`Bookings for ${selected?.name ?? "your restaurant"}.`}
-          restaurants={restaurants}
-          selectedSlug={selectedSlug}
-          onSelect={setSelectedSlug}
-          accountSlot={accountSlot}
         >
           <Button
             variant="outline"
@@ -377,6 +368,6 @@ export function ReservationsView({
           </div>
         )}
       </div>
-    </main>
+    </div>
   )
 }
