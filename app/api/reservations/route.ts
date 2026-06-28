@@ -17,15 +17,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0
 }
 
-function generateConfirmationCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-  let code = ""
-  for (let i = 0; i < 6; i++) {
-    code += alphabet[Math.floor(Math.random() * alphabet.length)]
-  }
-  return `ML-${code}`
-}
-
 export async function POST(request: Request) {
   let body: ReservationRequestBody
 
@@ -74,25 +65,22 @@ export async function POST(request: Request) {
     )
   }
 
-  const confirmationCode = generateConfirmationCode()
-
   const { data, error } = await supabase
     .from("reservations")
     .insert({
-      restaurant: isNonEmptyString(body.restaurant)
+      restaurant_name: isNonEmptyString(body.restaurant)
         ? body.restaurant.trim()
         : null,
       customer_name: body.customerName.trim(),
-      phone: body.phone.trim(),
-      email: isNonEmptyString(body.email) ? body.email.trim() : null,
+      customer_phone: body.phone.trim(),
+      customer_email: isNonEmptyString(body.email) ? body.email.trim() : null,
       notes: isNonEmptyString(body.notes) ? body.notes.trim() : null,
       guests,
-      date: body.date,
-      time: body.time,
-      confirmation_code: confirmationCode,
+      reservation_date: body.date,
+      reservation_time: body.time,
       status: "confirmed",
     })
-    .select("confirmation_code")
+    .select("id")
     .single()
 
   if (error) {
@@ -104,7 +92,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    { confirmationCode: data?.confirmation_code ?? confirmationCode },
+    { confirmationCode: String(data.id).slice(0, 8).toUpperCase() },
     { status: 201 },
   )
 }
