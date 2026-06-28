@@ -32,6 +32,7 @@ type ReservationDialogProps = {
   date: string
   dateLabel: string
   time: string
+  onReserved?: () => void
 }
 
 type Status = "idle" | "submitting" | "success" | "error"
@@ -44,6 +45,7 @@ export function ReservationDialog({
   date,
   dateLabel,
   time,
+  onReserved,
 }: ReservationDialogProps) {
   const [name, setName] = React.useState("")
   const [phone, setPhone] = React.useState("")
@@ -105,6 +107,7 @@ export function ReservationDialog({
 
       setConfirmationCode(payload.confirmationCode ?? null)
       setStatus("success")
+      onReserved?.()
     } catch (error) {
       setErrorMessage(
         error instanceof Error

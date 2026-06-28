@@ -89,12 +89,17 @@ function seededAvailability(seed: string, index: number): boolean {
   return Math.abs((hash >> index) % 10) > 3
 }
 
+/** The candidate slot times for a time-of-day preference. */
+export function getSlotTimes(preference: string): string[] {
+  return slotTemplate[preference] ?? slotTemplate.dinner
+}
+
 export function getSlots(
   date: string,
   guests: number,
   preference: string,
 ): Slot[] {
-  const times = slotTemplate[preference] ?? slotTemplate.dinner
+  const times = getSlotTimes(preference)
   const seed = `${date}-${guests}-${preference}`
   return times.map((time, index) => ({
     time,

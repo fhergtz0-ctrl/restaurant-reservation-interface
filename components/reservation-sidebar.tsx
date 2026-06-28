@@ -14,7 +14,7 @@ import { TimeSlotGrid } from "@/components/time-slot-grid"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
   dateOptions,
-  getSlots,
+  getSlotTimes,
   restaurant,
   timePreferences,
   type Slot,
@@ -49,17 +49,40 @@ export function ReservationSidebar() {
     return () => clearTimeout(timer)
   }, [])
 
-  // Refetch slots whenever the selection changes.
-  React.useEffect(() => {
-    if (pageLoading) return
+  // Load real availability from the API for the current selection.
+  const loadSlots = React.useCallback(async () => {
     setSlotsLoading(true)
     setSelectedTime(null)
-    const timer = setTimeout(() => {
-      setSlots(getSlots(date, guests, preference))
+    try {
+      const params = new URLSearchParams({
+        restaurant: restaurant.name,
+        date,
+        guests: String(guests),
+        preference,
+      })
+      const response = await fetch(`/api/availability?${params.toString()}`)
+      const payload = (await response.json()) as { slots?: Slot[] }
+      if (!response.ok || !payload.slots) {
+        throw new Error("Failed to load availability.")
+      }
+      setSlots(payload.slots)
+    } catch (error) {
+      console.log(
+        "[v0] Availability fetch error:",
+        error instanceof Error ? error.message : error,
+      )
+      // Fall back to empty availability rather than stale data.
+      setSlots(getSlotTimes(preference).map((time) => ({ time, available: false })))
+    } finally {
       setSlotsLoading(false)
-    }, 550)
-    return () => clearTimeout(timer)
-  }, [date, guests, preference, pageLoading])
+    }
+  }, [date, guests, preference])
+
+  // Refetch availability whenever the selection changes.
+  React.useEffect(() => {
+    if (pageLoading) return
+    void loadSlots()
+  }, [loadSlots, pageLoading])
 
   const selectedDateLabel = dateOptions.find((d) => d.value === date)?.label
 
@@ -179,6 +202,9 @@ export function ReservationSidebar() {
           date={date}
           dateLabel={selectedDateLabel ?? date}
           time={selectedTime}
+          onReserved={() => {
+            void loadSlots()
+          }}
         />
       )}
     </aside>
