@@ -79,9 +79,9 @@ export async function PATCH(
       )
     }
     updates.table_id = body.table_id
-    if (typeof body.table_name === "string" || body.table_name === null) {
-      updates.table_name = body.table_name
-    }
+    // NOTE: `table_name` is NOT a real column on public.reservations — it is
+    // derived from the tables relation on read. We echo the request's
+    // table_name back in the response instead of writing/selecting it.
   }
 
   const supabase = getSupabaseClient()
@@ -99,7 +99,7 @@ export async function PATCH(
     .from("reservations")
     .update(updates)
     .eq("id", id)
-    .select("id, status, table_id, table_name")
+    .select("id, status, table_id")
     .single()
 
   // 42703 = undefined_column: migration 007 not applied. Retry without the
@@ -110,12 +110,17 @@ export async function PATCH(
       .from("reservations")
       .update(updates)
       .eq("id", id)
-      .select("id, status, table_id, table_name")
+      .select("id, status, table_id")
       .single())
   }
 
   if (error) {
-    console.log("[v0] Admin reservation update error:", error.message)
+    console.log("[v0] Admin reservation update error:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
     // 23505 = unique_violation: another booking already holds that table slot.
     if (error.code === "23505") {
       return NextResponse.json(
@@ -140,6 +145,9 @@ export async function PATCH(
     id: data.id,
     status: data.status,
     table_id: data.table_id,
-    table_name: data.table_name,
+    // `table_name` is not stored on reservations; echo the request's value
+    // when a move supplied one, otherwise null.
+    table_name:
+      typeof body.table_name === "string" ? body.table_name : null,
   })
 }
