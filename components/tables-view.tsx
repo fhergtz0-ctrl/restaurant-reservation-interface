@@ -17,6 +17,7 @@ import {
   GripVerticalIcon,
   CheckIcon,
   TriangleAlertIcon,
+  SparklesIcon,
 } from "lucide-react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -30,15 +31,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { PageHeader } from "@/components/app-nav/page-header"
+import { StayProgress } from "@/components/operations/stay-progress"
 import {
   useRestaurantSelector,
   todayValue,
 } from "@/hooks/use-restaurant-selector"
+import { useNow } from "@/hooks/use-now"
 import {
   computeTableStatuses,
   computeFloorSummary,
   groupTablesByZone,
   floorStatusOf,
+  operationalStatusOf,
+  seatedPartyOf,
   STATUS_META,
   FLOOR_STATUSES,
   type AdminReservation,
@@ -46,6 +51,7 @@ import {
   type TableStatus,
   type FloorStatus,
 } from "@/lib/admin-data"
+import { OPERATIONAL_META } from "@/lib/operations"
 
 /* ------------------------------------------------------------------ */
 /* Status styling (dark premium)                                       */
@@ -138,6 +144,7 @@ function ToastViewport({
 
 export function TablesView() {
   const { selected } = useRestaurantSelector()
+  const nowMs = useNow(30_000)
   const [date, setDate] = React.useState(todayValue)
   const [tables, setTables] = React.useState<AdminTable[]>([])
   const [reservations, setReservations] = React.useState<AdminReservation[]>([])
@@ -361,6 +368,93 @@ export function TablesView() {
     [reservations, pushToast],
   )
 
+  const setCleaning = React.useCallback(
+    async (tableId: string, cleaning: boolean) => {
+      const prevTables = tables
+      const cleaning_since = cleaning ? new Date().toISOString() : null
+      setTables((prev) =>
+        prev.map((t) => (t.id === tableId ? { ...t, cleaning_since } : t)),
+      )
+      try {
+        const response = await fetch(`/api/admin/tables/${tableId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cleaning_since }),
+        })
+        if (!response.ok) {
+          const payload = (await response.json()) as { error?: string }
+          throw new Error(payload.error ?? "Couldn't update the table.")
+        }
+        pushToast(
+          cleaning ? "Table marked for cleaning." : "Table marked available.",
+          "success",
+        )
+      } catch (err) {
+        setTables(prevTables)
+        pushToast(
+          err instanceof Error ? err.message : "Couldn't update the table.",
+          "error",
+        )
+      }
+    },
+    [tables, pushToast],
+  )
+
+  const finishParty = React.useCallback(
+    async (reservationId: string, tableId: string) => {
+      const reservation = reservations.find((r) => r.id === reservationId)
+      if (!reservation) return
+      const prevStatus = reservation.status
+      // Optimistically finish the party and send the table to cleaning.
+      setReservations((prev) =>
+        prev.map((r) =>
+          r.id === reservationId ? { ...r, status: "finished" } : r,
+        ),
+      )
+      const cleaning_since = new Date().toISOString()
+      setTables((prev) =>
+        prev.map((t) => (t.id === tableId ? { ...t, cleaning_since } : t)),
+      )
+      try {
+        const response = await fetch(
+          `/api/admin/reservations/${reservationId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "finished" }),
+          },
+        )
+        if (!response.ok) {
+          const payload = (await response.json()) as { error?: string }
+          throw new Error(payload.error ?? "Couldn't finish the party.")
+        }
+        // Best-effort turnover marker; ignore column-missing failures.
+        await fetch(`/api/admin/tables/${tableId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cleaning_since }),
+        }).catch(() => {})
+        pushToast(`${reservation.customer_name} finished. Table cleaning.`, "success")
+      } catch (err) {
+        setReservations((prev) =>
+          prev.map((r) =>
+            r.id === reservationId ? { ...r, status: prevStatus } : r,
+          ),
+        )
+        setTables((prev) =>
+          prev.map((t) =>
+            t.id === tableId ? { ...t, cleaning_since: null } : t,
+          ),
+        )
+        pushToast(
+          err instanceof Error ? err.message : "Couldn't finish the party.",
+          "error",
+        )
+      }
+    },
+    [reservations, pushToast],
+  )
+
   /* ---- Drag & drop handlers -------------------------------------- */
 
   const handleDrop = React.useCallback(
@@ -466,6 +560,7 @@ export function TablesView() {
                     <TableCard
                       key={t.id}
                       table={t}
+                      nowMs={nowMs}
                       isDragOver={dragOverTableId === t.id}
                       isDroppableTarget={
                         dragPayload
@@ -512,11 +607,18 @@ export function TablesView() {
 
       <TableDrawer
         table={selectedTable}
+        nowMs={nowMs}
         droppableTargets={statuses}
         onClose={() => setSelectedTableId(null)}
         onSeat={seatGuest}
         onBlock={(blocked) => {
           if (selectedTable) void setBlocked(selectedTable.id, blocked)
+        }}
+        onFinish={(reservationId) => {
+          if (selectedTable) void finishParty(reservationId, selectedTable.id)
+        }}
+        onCleaning={(cleaning) => {
+          if (selectedTable) void setCleaning(selectedTable.id, cleaning)
         }}
         onMove={moveReservation}
       />
@@ -597,6 +699,7 @@ function Legend() {
 
 function TableCard({
   table,
+  nowMs,
   isDragOver,
   isDroppableTarget,
   isDragging,
@@ -609,6 +712,7 @@ function TableCard({
   onDrop,
 }: {
   table: TableStatus
+  nowMs: number
   isDragOver: boolean
   isDroppableTarget: boolean
   isDragging: boolean
@@ -625,6 +729,13 @@ function TableCard({
   const next = table.bookings[0]
   const seated = table.bookings.find((b) => b.status === "seated")
   const current = seated ?? next
+
+  // Operational overlay (finishing / cleaning) layered on top of the base
+  // four-state floor colour without disrupting the drag-and-drop grammar.
+  const opStatus = operationalStatusOf(table, nowMs)
+  const opMeta = OPERATIONAL_META[opStatus]
+  const seatedParty = seatedPartyOf(table)
+  const showOpBadge = opStatus === "finishing" || opStatus === "cleaning"
 
   // Dim non-droppable targets while a drag is in progress.
   const dimmed = isDragging && !isDroppableTarget && !isDragOver
@@ -658,12 +769,21 @@ function TableCard({
         <span className="flex size-9 items-center justify-center rounded-xl bg-background/60">
           <ArmchairIcon className="size-5 text-foreground" />
         </span>
-        <span
-          className={`inline-flex h-5 items-center gap-1 rounded-full px-2 text-[10px] font-medium ${style.badge}`}
-        >
-          <span className={`size-1.5 rounded-full ${style.dot}`} />
-          {style.label}
-        </span>
+        {showOpBadge ? (
+          <span
+            className={`inline-flex h-5 items-center gap-1 rounded-full px-2 text-[10px] font-medium ${opMeta.badge}`}
+          >
+            <opMeta.icon className="size-3" />
+            {opMeta.label}
+          </span>
+        ) : (
+          <span
+            className={`inline-flex h-5 items-center gap-1 rounded-full px-2 text-[10px] font-medium ${style.badge}`}
+          >
+            <span className={`size-1.5 rounded-full ${style.dot}`} />
+            {style.label}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-col">
@@ -675,6 +795,26 @@ function TableCard({
           Seats {table.capacity}
         </span>
       </div>
+
+      {/* Live stay timer for a seated party */}
+      {seatedParty && (
+        <div className="border-t border-border/60 pt-2">
+          <StayProgress
+            seatedAt={seatedParty.seatedAt}
+            guests={seatedParty.guests}
+            expectedMin={seatedParty.expectedMin}
+            nowMs={nowMs}
+            compact
+          />
+        </div>
+      )}
+
+      {/* Cleaning turnover hint */}
+      {opStatus === "cleaning" && (
+        <div className="border-t border-border/60 pt-2 text-xs text-violet-600 dark:text-violet-400">
+          Being turned over
+        </div>
+      )}
 
       {/* Current / next booking + draggable chips */}
       {table.bookings.length > 0 ? (
@@ -727,17 +867,23 @@ function TableCard({
 
 function TableDrawer({
   table,
+  nowMs,
   droppableTargets,
   onClose,
   onSeat,
   onBlock,
+  onFinish,
+  onCleaning,
   onMove,
 }: {
   table: TableStatus | null
+  nowMs: number
   droppableTargets: TableStatus[]
   onClose: () => void
   onSeat: (reservationId: string) => void
   onBlock: (blocked: boolean) => void
+  onFinish: (reservationId: string) => void
+  onCleaning: (cleaning: boolean) => void
   onMove: (reservationId: string, toTable: TableStatus) => void
 }) {
   const open = table !== null
@@ -754,6 +900,9 @@ function TableDrawer({
 
   const status = table ? floorStatusOf(table) : "available"
   const style = FLOOR_STYLES[status]
+  const opStatus = table ? operationalStatusOf(table, nowMs) : "available"
+  const seatedParty = table ? seatedPartyOf(table) : null
+  const isCleaning = opStatus === "cleaning"
 
   return (
     <div
@@ -811,6 +960,48 @@ function TableDrawer({
             </header>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
+              {/* Live stay timer */}
+              {seatedParty && (
+                <section className="flex flex-col gap-2 rounded-xl border border-border bg-background/50 p-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Current stay
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm">
+                    <UsersIcon className="size-4 text-muted-foreground" />
+                    <span className="font-medium">
+                      {seatedParty.customerName}
+                    </span>
+                    <span className="text-muted-foreground">
+                      · party of {seatedParty.guests}
+                    </span>
+                  </div>
+                  <StayProgress
+                    seatedAt={seatedParty.seatedAt}
+                    guests={seatedParty.guests}
+                    expectedMin={seatedParty.expectedMin}
+                    nowMs={nowMs}
+                  />
+                </section>
+              )}
+
+              {/* Cleaning turnover */}
+              {isCleaning && (
+                <section className="flex items-center justify-between gap-3 rounded-xl border border-violet-500/30 bg-violet-500/5 p-4">
+                  <span className="text-sm text-violet-600 dark:text-violet-400">
+                    Table is being turned over.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => onCleaning(false)}
+                  >
+                    <CheckCircle2Icon className="size-4" />
+                    Mark available
+                  </Button>
+                </section>
+              )}
+
               {/* Bookings */}
               <section className="flex flex-col gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -862,6 +1053,17 @@ function TableDrawer({
                               Seat guest
                             </Button>
                           )}
+                          {b.status === "seated" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 gap-1 px-2 text-xs"
+                              onClick={() => onFinish(b.id)}
+                            >
+                              <CheckCircle2Icon className="size-3.5" />
+                              Finish party
+                            </Button>
+                          )}
                           <MoveControl
                             currentTableId={table.id}
                             targets={droppableTargets}
@@ -877,6 +1079,16 @@ function TableDrawer({
 
             {/* Footer actions */}
             <footer className="flex flex-col gap-2 border-t border-border p-5">
+              {opStatus === "available" && (
+                <Button
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => onCleaning(true)}
+                >
+                  <SparklesIcon className="size-4" />
+                  Start cleaning
+                </Button>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {table.blocked ? (
                   <Button
@@ -892,7 +1104,9 @@ function TableDrawer({
                     variant="outline"
                     className="gap-1.5"
                     onClick={() => onBlock(true)}
-                    disabled={floorStatusOf(table) === "occupied"}
+                    disabled={
+                      opStatus === "seated" || opStatus === "finishing"
+                    }
                   >
                     <LockIcon className="size-4" />
                     Block table

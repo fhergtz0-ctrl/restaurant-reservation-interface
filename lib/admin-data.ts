@@ -371,3 +371,68 @@ export function operationalStatusOf(t: TableStatus, nowMs: number): OpStatus {
     nowMs,
   })
 }
+
+export type LiveMetrics = {
+  total: number
+  available: number
+  reserved: number
+  seated: number
+  finishing: number
+  cleaning: number
+  blocked: number
+  guestsSeated: number
+  averageStayMin: number | null
+  occupancyPct: number
+}
+
+/**
+ * Aggregate live service metrics from the operational table states plus the
+ * day's reservations (for the average completed stay). `nowMs` drives timers.
+ */
+export function computeLiveMetrics(
+  statuses: TableStatus[],
+  reservations: AdminReservation[],
+  nowMs: number,
+): LiveMetrics {
+  const counts: Record<OpStatus, number> = {
+    available: 0,
+    reserved: 0,
+    seated: 0,
+    finishing: 0,
+    cleaning: 0,
+    blocked: 0,
+  }
+  let guestsSeated = 0
+  for (const t of statuses) {
+    const op = operationalStatusOf(t, nowMs)
+    counts[op] += 1
+    if (op === "seated" || op === "finishing") {
+      const party = seatedPartyOf(t)
+      if (party) guestsSeated += party.guests
+    }
+  }
+
+  // Average completed stay from reservations that carry both timestamps.
+  const completed = reservations.filter((r) => r.seated_at && r.finished_at)
+  let averageStayMin: number | null = null
+  if (completed.length > 0) {
+    const totalMin = completed.reduce((sum, r) => {
+      const start = new Date(r.seated_at as string).getTime()
+      const end = new Date(r.finished_at as string).getTime()
+      return sum + Math.max(0, (end - start) / 60000)
+    }, 0)
+    averageStayMin = Math.round(totalMin / completed.length)
+  }
+
+  const total = statuses.length
+  const activeSeated = counts.seated + counts.finishing
+  const occupancyPct = total === 0 ? 0 : Math.round((activeSeated / total) * 100)
+
+  return {
+    total,
+    ...counts,
+    guestsSeated,
+    averageStayMin,
+    occupancyPct,
+  }
+}

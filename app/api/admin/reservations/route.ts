@@ -26,7 +26,7 @@ type ReservationRow = {
   tables: { name: string | null } | { name: string | null }[] | null
 }
 
-function isNonEmptyString(value: string | null): value is string {
+function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0
 }
 
