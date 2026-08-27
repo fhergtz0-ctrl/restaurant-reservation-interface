@@ -115,7 +115,12 @@ export async function PATCH(
   }
 
   if (error) {
-    console.log("[v0] Admin reservation update error:", {
+    // TEMP DIAGNOSTIC (Phase 11 debug): log AND surface the raw PostgREST
+    // error so it can be read from Chrome Network → Response. Remove once the
+    // Finish party 500 is root-caused.
+    console.error("[v0] Reservation PATCH failed", {
+      id,
+      updates,
       code: error.code,
       message: error.message,
       details: error.details,
@@ -129,7 +134,18 @@ export async function PATCH(
       )
     }
     return NextResponse.json(
-      { error: "We couldn't update the reservation. Please try again." },
+      {
+        error: "Reservation update failed",
+        // TEMP: raw Supabase/PostgREST error for diagnosis only.
+        supabase: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        },
+        // TEMP: the exact payload we attempted to write.
+        attempted: updates,
+      },
       { status: 500 },
     )
   }
