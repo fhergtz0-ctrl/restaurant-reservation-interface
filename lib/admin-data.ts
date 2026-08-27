@@ -1,11 +1,28 @@
+import {
+  deriveOperationalStatus as deriveOp,
+  getExpectedDurationMinutes as expectedMinutes,
+  type OperationalStatus as OpStatus,
+  type SeatedParty as SeatedPartyType,
+} from "./operations"
+
 export const RESERVATION_STATUSES = [
   "confirmed",
   "seated",
+  "finished",
   "cancelled",
   "no_show",
 ] as const
 
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number]
+
+// Re-exported here so views import operational state helpers from one place.
+export {
+  deriveOperationalStatus,
+  getExpectedDurationMinutes,
+  computeStayProgress,
+  type OperationalStatus,
+  type SeatedParty,
+} from "./operations"
 
 export function isReservationStatus(
   value: unknown,
@@ -33,6 +50,11 @@ export const STATUS_META: Record<ReservationStatus, StatusMeta> = {
     className:
       "bg-emerald-500/15 text-emerald-500 ring-1 ring-inset ring-emerald-500/30 dark:text-emerald-400",
   },
+  finished: {
+    label: "Finished",
+    className:
+      "bg-sky-500/15 text-sky-600 ring-1 ring-inset ring-sky-500/30 dark:text-sky-400",
+  },
   cancelled: {
     label: "Cancelled",
     className:
@@ -58,6 +80,11 @@ export type AdminReservation = {
   status: ReservationStatus
   table_id: string | null
   table_name: string | null
+  /** Operational timestamps (migration 007). Null when not yet reached. */
+  seated_at: string | null
+  finished_at: string | null
+  /** 'reservation' (default) | 'walk_in'. */
+  source: string
 }
 
 export type AdminTable = {
@@ -68,6 +95,8 @@ export type AdminTable = {
   zone?: string | null
   /** Whether the table is taken out of service on the floor plan. */
   blocked?: boolean | null
+  /** Cleaning marker (migration 007); when set the table is being turned over. */
+  cleaning_since?: string | null
 }
 
 /** Statuses that actively occupy a table for a service. */
@@ -145,6 +174,9 @@ export type TableBookingWithId = TableBooking & {
   id: string
   guests: number
   phone: string | null
+  seated_at: string | null
+  finished_at: string | null
+  source: string
 }
 
 export type TableStatus = {
@@ -155,6 +187,8 @@ export type TableStatus = {
   blocked: boolean
   occupied: boolean
   bookings: TableBookingWithId[]
+  /** Cleaning marker (migration 007); null when not being turned over. */
+  cleaning_since: string | null
 }
 
 /** The four floor-plan states, in legend order. */
@@ -211,6 +245,9 @@ export function computeTableStatuses(
       status: r.status,
       guests: r.guests,
       phone: r.customer_phone,
+      seated_at: r.seated_at,
+      finished_at: r.finished_at,
+      source: r.source,
     })
   }
 
@@ -226,6 +263,7 @@ export function computeTableStatuses(
       blocked: Boolean(t.blocked),
       occupied: bookings.length > 0,
       bookings,
+      cleaning_since: t.cleaning_since ?? null,
     }
   })
 }
@@ -296,4 +334,40 @@ export function computeFloorSummary(statuses: TableStatus[]): FloorSummary {
     blocked,
     occupancyPct,
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Operational-state bridge (Phase 11)                                 */
+/* ------------------------------------------------------------------ */
+
+/** The party actively seated at a table (status 'seated'), if any. */
+export function seatedPartyOf(t: TableStatus): SeatedPartyType | null {
+  const booking = t.bookings.find((b) => b.status === "seated")
+  if (!booking) return null
+  return {
+    reservationId: booking.id,
+    seatedAt: booking.seated_at,
+    customerName: booking.customer,
+    guests: booking.guests,
+    expectedMin: expectedMinutes({ guests: booking.guests }),
+  }
+}
+
+/** Count of upcoming (confirmed, not yet seated) bookings for a table. */
+export function upcomingCountOf(t: TableStatus): number {
+  return t.bookings.filter((b) => b.status === "confirmed").length
+}
+
+/**
+ * Map a TableStatus to the six-state operational model using the centralised
+ * derivation in lib/operations. `nowMs` drives the seated/finishing split.
+ */
+export function operationalStatusOf(t: TableStatus, nowMs: number): OpStatus {
+  return deriveOp({
+    blocked: t.blocked,
+    cleaningSince: t.cleaning_since,
+    seated: seatedPartyOf(t),
+    upcomingCount: upcomingCountOf(t),
+    nowMs,
+  })
 }

@@ -45,17 +45,30 @@ export async function PATCH(
     )
   }
 
+  // Track which keys are operational (migration 007) so we can retry without
+  // them if the columns don't exist yet.
+  const operationalKeys: string[] = []
+
   if (hasStatus) {
     if (!isReservationStatus(body.status)) {
       return NextResponse.json(
         {
           error:
-            "A valid status is required: confirmed, seated, cancelled, or no_show.",
+            "A valid status is required: confirmed, seated, finished, cancelled, or no_show.",
         },
         { status: 400 },
       )
     }
     updates.status = body.status
+
+    // Stamp the operational lifecycle timestamps on transition.
+    if (body.status === "seated") {
+      updates.seated_at = new Date().toISOString()
+      operationalKeys.push("seated_at")
+    } else if (body.status === "finished") {
+      updates.finished_at = new Date().toISOString()
+      operationalKeys.push("finished_at")
+    }
   }
 
   if (hasTable) {
@@ -82,12 +95,24 @@ export async function PATCH(
     )
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("reservations")
     .update(updates)
     .eq("id", id)
     .select("id, status, table_id, table_name")
     .single()
+
+  // 42703 = undefined_column: migration 007 not applied. Retry without the
+  // operational timestamp columns so the core status change still succeeds.
+  if (error && error.code === "42703" && operationalKeys.length > 0) {
+    for (const key of operationalKeys) delete updates[key]
+    ;({ data, error } = await supabase
+      .from("reservations")
+      .update(updates)
+      .eq("id", id)
+      .select("id, status, table_id, table_name")
+      .single())
+  }
 
   if (error) {
     console.log("[v0] Admin reservation update error:", error.message)

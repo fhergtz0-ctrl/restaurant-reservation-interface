@@ -35,9 +35,14 @@ export async function GET(request: Request) {
     return query
   }
 
-  let { data, error } = await runQuery("id, name, capacity, zone, blocked")
-
-  // 42703 = undefined_column. Retry without the optional floor-plan columns.
+  // Prefer the full set (floor-plan + operational columns). Degrade in steps
+  // so the page works whether migration 004 and/or 007 have been applied.
+  let { data, error } = await runQuery(
+    "id, name, capacity, zone, blocked, cleaning_since",
+  )
+  if (error && error.code === "42703") {
+    ;({ data, error } = await runQuery("id, name, capacity, zone, blocked"))
+  }
   if (error && error.code === "42703") {
     ;({ data, error } = await runQuery("id, name, capacity"))
   }
