@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import {
   CalendarDaysIcon,
   ClockIcon,
@@ -342,8 +343,10 @@ export function BookingSearch({
   const [data, setData] = React.useState<PublicAvailability | null>(null)
   const [errored, setErrored] = React.useState(false)
   const [selected, setSelected] = React.useState<BookingIntent | null>(null)
-  const [continued, setContinued] = React.useState(false)
+  const [holding, setHolding] = React.useState(false)
+  const [holdError, setHoldError] = React.useState<string | null>(null)
 
+  const router = useRouter()
   const resultsRef = React.useRef<HTMLDivElement | null>(null)
 
   /** Keep the URL shareable: /book/<slug>?date=&partySize=(&time=). */
@@ -368,7 +371,7 @@ export function BookingSearch({
       setLoading(true)
       setErrored(false)
       setSelected(null)
-      setContinued(false)
+      setHoldError(null)
       syncUrl(d, p)
       try {
         const params = new URLSearchParams({
@@ -432,9 +435,64 @@ export function BookingSearch({
       service: svc.name,
     }
     setSelected(intent)
-    setContinued(false)
+    setHoldError(null)
     syncUrl(date, partySize, t.time24)
   }
+
+  // Continue -> create a temporary hold, then hand off to the details step.
+  // The hold is what actually reserves inventory for the guest; no reservation
+  // is created here. A 409 means someone else took the slot first.
+  const createHold = React.useCallback(async () => {
+    if (!selected) return
+    setHolding(true)
+    setHoldError(null)
+    try {
+      const res = await fetch("/api/book/holds", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          restaurant: selected.restaurant,
+          date: selected.date,
+          partySize: selected.partySize,
+          time: selected.time24,
+          service: selected.service ?? undefined,
+        }),
+      })
+      const payload = (await res.json()) as {
+        holdId?: string
+        status?: string
+      }
+
+      if (res.status === 409 || payload.status === "conflict") {
+        setHoldError(
+          "That time was just taken. Please pick another available time.",
+        )
+        // Refresh availability so the taken slot disappears.
+        void runSearch(selected.date, selected.partySize)
+        return
+      }
+      if (!res.ok || !payload.holdId) {
+        setHoldError(
+          "We couldn't hold that table right now. Please try again in a moment.",
+        )
+        return
+      }
+
+      router.push(
+        `/book/${selected.restaurant}/details?hold=${payload.holdId}`,
+      )
+    } catch (err) {
+      console.log(
+        "[v0] Hold creation error:",
+        err instanceof Error ? err.message : err,
+      )
+      setHoldError(
+        "We couldn't hold that table right now. Please try again in a moment.",
+      )
+    } finally {
+      setHolding(false)
+    }
+  }, [selected, router, runSearch])
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-8 px-4 py-8 pb-28 sm:px-6 sm:py-12">
@@ -555,29 +613,27 @@ export function BookingSearch({
               type="button"
               size="lg"
               className="gap-2"
-              onClick={() => setContinued(true)}
+              disabled={holding}
+              onClick={() => void createHold()}
             >
-              Continue
-              <ArrowRightIcon className="size-4" aria-hidden />
+              {holding ? (
+                <Loader2Icon className="size-4 animate-spin" aria-hidden />
+              ) : null}
+              {holding ? "Holding…" : "Continue"}
+              {!holding && <ArrowRightIcon className="size-4" aria-hidden />}
             </Button>
           </div>
         </div>
       )}
 
-      {/* Placeholder handoff for Phase 13B (no reservation is created). */}
-      {continued && selected && (
+      {/* Inline hold error (e.g. the slot was taken during selection). */}
+      {holdError && selected && (
         <div
-          role="status"
+          role="alert"
           className="fixed inset-x-0 bottom-16 z-20 mx-auto w-full max-w-2xl px-4 sm:px-6"
         >
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-            <p className="font-medium">Almost there</p>
-            <p className="mt-1 text-muted-foreground">
-              Guest details and confirmation arrive in the next step. Your
-              selection — {selected.time} for {selected.partySize}{" "}
-              {selected.partySize === 1 ? "guest" : "guests"} on{" "}
-              {longDate(selected.date)} — is ready to hand off.
-            </p>
+          <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-foreground">
+            {holdError}
           </div>
         </div>
       )}
