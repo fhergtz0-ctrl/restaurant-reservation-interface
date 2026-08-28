@@ -94,6 +94,7 @@ type EditorState = {
 export function ScheduleView() {
   const { selected } = useRestaurantSelector()
   const slug = selected?.slug ?? null
+  const restaurantId = selected?.id ?? null
   const restaurantName = selected?.name ?? null
 
   const [periods, setPeriods] = React.useState<ServicePeriod[]>([])
@@ -107,12 +108,13 @@ export function ScheduleView() {
   const { success, error: toastError } = useToast()
 
   const load = React.useCallback(async () => {
-    if (!slug) return
+    if (!slug && !restaurantId) return
     setLoading(true)
     try {
-      const res = await fetch(
-        `/api/admin/schedule?restaurant=${encodeURIComponent(slug)}`,
-      )
+      const params = new URLSearchParams()
+      if (slug) params.set("restaurant", slug)
+      if (restaurantId) params.set("restaurantId", restaurantId)
+      const res = await fetch(`/api/admin/schedule?${params.toString()}`)
       const payload = (await res.json()) as {
         periods?: ServicePeriod[]
         configured?: boolean
@@ -131,7 +133,7 @@ export function ScheduleView() {
     } finally {
       setLoading(false)
     }
-  }, [slug, toastError])
+  }, [slug, restaurantId, toastError])
 
   React.useEffect(() => {
     void load()
@@ -157,7 +159,7 @@ export function ScheduleView() {
   /* ---- Save (create or update) ----------------------------------- */
 
   const submitEditor = async () => {
-    if (!editor || !slug) return
+    if (!editor || (!slug && !restaurantId)) return
     const d = editor.draft
     const payloadPeriod = {
       day_of_week: editor.day,
@@ -197,6 +199,7 @@ export function ScheduleView() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             restaurant: slug,
+            restaurantId,
             name: restaurantName,
             period: payloadPeriod,
           }),
@@ -220,11 +223,14 @@ export function ScheduleView() {
   /* ---- Delete ---------------------------------------------------- */
 
   const deletePeriod = async (p: ServicePeriod) => {
-    if (!slug) return
+    if (!slug && !restaurantId) return
     setBusy(true)
     try {
+      const params = new URLSearchParams()
+      if (slug) params.set("restaurant", slug)
+      if (restaurantId) params.set("restaurantId", restaurantId)
       const res = await fetch(
-        `/api/admin/schedule/${p.id}?restaurant=${encodeURIComponent(slug)}`,
+        `/api/admin/schedule/${p.id}?${params.toString()}`,
         { method: "DELETE" },
       )
       const payload = (await res.json()) as { error?: string }
@@ -257,7 +263,8 @@ export function ScheduleView() {
     })
 
   const submitCopy = async () => {
-    if (copyDay === null || !slug || copyTargets.size === 0) return
+    if (copyDay === null || (!slug && !restaurantId) || copyTargets.size === 0)
+      return
     const source = grouped[copyDay].filter((p) => p.active)
     if (source.length === 0) {
       toastError("Nothing to copy", "This day has no service periods.")
@@ -285,6 +292,7 @@ export function ScheduleView() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               restaurant: slug,
+              restaurantId,
               name: restaurantName,
               period: candidate,
             }),
