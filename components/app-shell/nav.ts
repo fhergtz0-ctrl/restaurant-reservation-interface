@@ -9,6 +9,7 @@ import {
   CreditCardIcon,
   CrownIcon,
   ExternalLinkIcon,
+  FlaskConicalIcon,
   GlobeIcon,
   HistoryIcon,
   LayoutDashboardIcon,
@@ -73,6 +74,11 @@ export const navSections: WorkspaceNavSection[] = [
       { label: "Schedule", href: "/schedule", icon: ClockIcon },
       { label: "Special Days", href: "/special-days", icon: StarIcon },
       { label: "Spaces / Zones", href: "/spaces", icon: MapIcon },
+      {
+        label: "Availability Engine",
+        href: "/availability",
+        icon: FlaskConicalIcon,
+      },
     ],
   },
   {

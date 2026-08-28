@@ -477,7 +477,13 @@ function evaluatePeriodSlots(
   })
 
   const slots: SlotAvailability[] = []
-  for (let t = start; t < end; t += interval) {
+  // A booking must FINISH by the service close, so the last offered start is
+  // `end - duration`. Offering a start whose default booking would overrun
+  // closing (e.g. a 22:30 start for a 90-min dinner when the service ends at
+  // 23:00) is never bookable in practice. When the window is shorter than one
+  // booking, no slot is offered.
+  const lastStart = end - duration
+  for (let t = start; t <= lastStart; t += interval) {
     const slotEnd = t + duration
     const wrapMin = ((t % 1440) + 1440) % 1440
     const requested =
