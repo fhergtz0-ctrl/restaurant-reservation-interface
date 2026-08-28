@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getSupabaseClient } from "@/lib/supabase"
 import { isReservationStatus } from "@/lib/admin-data"
+import { reassignReservationTable } from "@/lib/reservations-server"
 
 type PatchBody = {
   status?: unknown
@@ -93,6 +94,86 @@ export async function PATCH(
       },
       { status: 503 },
     )
+  }
+
+  // Atomic MOVE path: reassigning to a concrete table goes through the
+  // unified-inventory RPC so it takes the shared lock and cannot land on a
+  // held or otherwise-occupied table. Status-only changes, unassigning
+  // (table_id = null), a reservation with no restaurant scope, or a pre-012
+  // database all fall through to the legacy update below.
+  const movingToTable =
+    hasTable && typeof body.table_id === "string" && body.table_id.length > 0
+
+  if (movingToTable) {
+    const move = await reassignReservationTable(
+      supabase,
+      id,
+      body.table_id as string,
+    )
+
+    if (move.status === "conflict") {
+      return NextResponse.json(
+        { error: "That table is already booked for this time slot." },
+        { status: 409 },
+      )
+    }
+    if (move.status === "error" && move.message === "not_found") {
+      return NextResponse.json(
+        { error: "Reservation not found." },
+        { status: 404 },
+      )
+    }
+    if (move.status === "error") {
+      console.log("[v0] reassignReservationTable error:", move.message)
+      return NextResponse.json(
+        { error: "Reservation update failed" },
+        { status: 500 },
+      )
+    }
+
+    if (move.status === "ok") {
+      // The table was moved atomically. Apply any accompanying status change
+      // separately (without table_id, which the RPC already handled).
+      if (hasStatus) {
+        const statusUpdates: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(updates)) {
+          if (k !== "table_id") statusUpdates[k] = v
+        }
+        let { error: sErr } = await supabase
+          .from("reservations")
+          .update(statusUpdates)
+          .eq("id", id)
+        if (sErr && sErr.code === "42703" && operationalKeys.length > 0) {
+          for (const key of operationalKeys) delete statusUpdates[key]
+          ;({ error: sErr } = await supabase
+            .from("reservations")
+            .update(statusUpdates)
+            .eq("id", id))
+        }
+        if (sErr) {
+          console.log("[v0] post-move status update error:", sErr.message)
+          return NextResponse.json(
+            { error: "Reservation update failed" },
+            { status: 500 },
+          )
+        }
+      }
+
+      const { data: fresh } = await supabase
+        .from("reservations")
+        .select("id, status, table_id")
+        .eq("id", id)
+        .single()
+
+      return NextResponse.json({
+        id: fresh?.id ?? id,
+        status: fresh?.status ?? body.status ?? null,
+        table_id: fresh?.table_id ?? body.table_id,
+        table_name:
+          typeof body.table_name === "string" ? body.table_name : null,
+      })
+    }
+    // move.status === "migration_absent" | "no_scope" -> legacy update below.
   }
 
   let { data, error } = await supabase

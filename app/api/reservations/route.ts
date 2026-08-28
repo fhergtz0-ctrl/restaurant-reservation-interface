@@ -7,6 +7,7 @@ import {
   pickAvailableTable,
 } from "@/lib/tables"
 import { getRestaurantBySlug } from "@/lib/restaurants"
+import { createDirectReservation } from "@/lib/reservations-server"
 
 type ReservationRequestBody = {
   restaurant?: unknown
@@ -121,6 +122,51 @@ export async function POST(request: Request) {
     }
   }
 
+  const customerEmail = isNonEmptyString(body.email) ? body.email.trim() : null
+  const notes = isNonEmptyString(body.notes) ? body.notes.trim() : null
+
+  // Preferred path: atomic, race-safe create through the unified-inventory RPC.
+  // It refuses a table already held or reserved for an overlapping time. Falls
+  // back to the legacy direct insert only when migration 012 is not applied.
+  if (assignedTableId && restaurantId && restaurantName) {
+    const rpc = await createDirectReservation(supabase, {
+      restaurantId,
+      restaurantName,
+      date: body.date,
+      time: body.time,
+      guests,
+      customerName: body.customerName.trim(),
+      customerPhone: body.phone.trim(),
+      customerEmail,
+      notes,
+      tableId: assignedTableId,
+      status: "confirmed",
+      source: "reservation",
+      seatedAt: null,
+    })
+
+    if (rpc.status === "ok") {
+      return NextResponse.json(
+        { confirmationCode: rpc.reservationId.slice(0, 8).toUpperCase() },
+        { status: 201 },
+      )
+    }
+    if (rpc.status === "conflict") {
+      return NextResponse.json(
+        { error: "No tables available for this time." },
+        { status: 409 },
+      )
+    }
+    if (rpc.status === "error") {
+      console.log("[v0] createDirectReservation error:", rpc.message)
+      return NextResponse.json(
+        { error: "We couldn't save your reservation. Please try again." },
+        { status: 500 },
+      )
+    }
+    // rpc.status === "migration_absent" -> fall through to the legacy insert.
+  }
+
   const { data, error } = await supabase
     .from("reservations")
     .insert({
@@ -130,8 +176,8 @@ export async function POST(request: Request) {
       ...(restaurantId ? { restaurant_id: restaurantId } : {}),
       customer_name: body.customerName.trim(),
       customer_phone: body.phone.trim(),
-      customer_email: isNonEmptyString(body.email) ? body.email.trim() : null,
-      notes: isNonEmptyString(body.notes) ? body.notes.trim() : null,
+      customer_email: customerEmail,
+      notes,
       guests,
       reservation_date: body.date,
       reservation_time: body.time,

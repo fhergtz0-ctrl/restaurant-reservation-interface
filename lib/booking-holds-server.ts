@@ -192,32 +192,34 @@ export async function getHold(holdId: string): Promise<PublicHold | null> {
 }
 
 /**
- * Cancel a hold: mark the parent 'cancelled' and free its child table-locks so
- * the exclusion constraint stops blocking. Never hard-deletes. Returns the
- * guest-safe hold (now cancelled) or null when it doesn't exist.
+ * Cancel a hold atomically via the cancel_booking_hold RPC: it marks the parent
+ * 'cancelled' and deactivates the hold's inventory blocks (under the shared
+ * advisory lock) so the exclusion constraint stops blocking. Never hard-deletes.
+ *
+ * Pre-migration fallback: if the RPC is absent (migration 012 not applied) we
+ * fall back to a best-effort status update on booking_holds so the guest flow
+ * still behaves. Returns the guest-safe hold (now cancelled) or null.
  */
 export async function cancelHold(holdId: string): Promise<PublicHold | null> {
   const supabase = getSupabaseClient()
   if (!supabase) return null
 
-  // Only transition from 'active'; leave converted/expired/cancelled as-is.
-  const { error: updErr } = await supabase
-    .from("booking_holds")
-    .update({ status: "cancelled" })
-    .eq("id", holdId)
-    .eq("status", "active")
-  if (updErr && !isMissingSchema(updErr)) {
-    console.log("[v0] cancelHold update error:", updErr.message)
-    return null
-  }
+  const { error: rpcErr } = await supabase.rpc("cancel_booking_hold", {
+    p_hold_id: holdId,
+  })
 
-  // Release the per-table locks regardless (idempotent).
-  const { error: freeErr } = await supabase
-    .from("booking_hold_tables")
-    .update({ active: false })
-    .eq("hold_id", holdId)
-  if (freeErr && !isMissingSchema(freeErr)) {
-    console.log("[v0] cancelHold free-tables error:", freeErr.message)
+  if (rpcErr) {
+    // Missing function => migration not applied yet. Fall back to a plain
+    // status flip on the workflow row (inventory table doesn't exist either).
+    const { error: updErr } = await supabase
+      .from("booking_holds")
+      .update({ status: "cancelled" })
+      .eq("id", holdId)
+      .eq("status", "active")
+    if (updErr && !isMissingSchema(updErr)) {
+      console.log("[v0] cancelHold fallback error:", updErr.message)
+      return null
+    }
   }
 
   return getHold(holdId)

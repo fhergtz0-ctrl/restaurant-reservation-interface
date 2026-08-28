@@ -267,6 +267,15 @@ export async function loadAvailability(params: {
       : Promise.resolve([] as EngineReservation[]),
     // Active, unexpired holds block availability just like reservations. This
     // is the ONLY hold integration point — the pure engine stays untouched.
+    //
+    // READ MODEL (Phase 13B): availability is deliberately derived from the
+    // reservations table + booking_holds, NOT from restaurant_inventory_blocks.
+    // The blocks table is the WRITE-side structural guarantee (the GiST
+    // exclusion constraint that no two writers can violate). For READS the
+    // engine is richer and more complete: it resolves each reservation's
+    // occupancy from its containing service period's duration, and it still
+    // covers legacy reservations that predate the migration (which have no
+    // block row). Reading blocks-only here would under-count those legacy rows.
     loadActiveHoldRows(ctx, params.date),
   ])
 

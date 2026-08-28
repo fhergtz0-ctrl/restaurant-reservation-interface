@@ -7,6 +7,7 @@ import {
   type AdminReservation,
 } from "@/lib/admin-data"
 import { getRestaurantBySlug } from "@/lib/restaurants"
+import { createDirectReservation } from "@/lib/reservations-server"
 
 type ReservationRow = {
   id: string
@@ -209,6 +210,47 @@ export async function POST(request: Request) {
 
   const date = isNonEmptyString(body.date) ? body.date.trim() : todayISO()
   const time = isNonEmptyString(body.time) ? body.time.trim() : formatNowTime()
+  const nowIsoSeat = new Date().toISOString()
+
+  // Preferred path: atomic seat through the unified-inventory RPC. Its
+  // time-overlap check (against holds AND reservations) supersedes the
+  // date-level manual guard below, and it cannot seat onto a held table. Falls
+  // back to the legacy check+insert only when migration 012 is not applied.
+  if (restaurantId && restaurantName) {
+    const rpc = await createDirectReservation(supabase, {
+      restaurantId,
+      restaurantName,
+      date,
+      time,
+      guests,
+      customerName: body.customerName.trim(),
+      customerPhone: isNonEmptyString(body.phone) ? body.phone.trim() : "",
+      customerEmail: null,
+      notes: isNonEmptyString(body.notes) ? body.notes.trim() : null,
+      tableId: body.tableId,
+      status: "seated",
+      source: "walk_in",
+      seatedAt: nowIsoSeat,
+    })
+
+    if (rpc.status === "ok") {
+      return NextResponse.json({ id: rpc.reservationId }, { status: 201 })
+    }
+    if (rpc.status === "conflict") {
+      return NextResponse.json(
+        { error: "That table already has a party at this time." },
+        { status: 409 },
+      )
+    }
+    if (rpc.status === "error") {
+      console.log("[v0] walk-in createDirectReservation error:", rpc.message)
+      return NextResponse.json(
+        { error: "We couldn't seat the walk-in. Please try again." },
+        { status: 500 },
+      )
+    }
+    // migration_absent -> fall through to the legacy guard + insert.
+  }
 
   // Guard: never seat two active parties at the same table.
   const { data: activeAtTable, error: checkError } = await supabase
