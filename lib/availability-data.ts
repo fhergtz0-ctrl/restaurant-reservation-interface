@@ -33,6 +33,8 @@ import {
   type EngineZone,
 } from "@/lib/availability-engine"
 import { isReservationStatus } from "@/lib/admin-data"
+import { holdsToBlockingReservations } from "@/lib/booking-holds"
+import { loadActiveHoldRows } from "@/lib/booking-holds-server"
 
 /* ------------------------------------------------------------------ */
 /* Row shapes                                                          */
@@ -256,13 +258,16 @@ export async function loadAvailability(params: {
   // reservations. Tables + combinations reuse the Table Combinations loaders
   // (which resolve the name-scoped tables), so nothing is duplicated.
   const restaurantName = await resolveRestaurantName(ctx)
-  const [window, zones, tableMap, reservations] = await Promise.all([
+  const [window, zones, tableMap, reservations, holdRows] = await Promise.all([
     resolveServiceWindow(ctx, params.date),
     loadZones(ctx),
     loadTableMap(ctx),
     restaurantName
       ? loadReservations(ctx, restaurantName, params.date)
       : Promise.resolve([] as EngineReservation[]),
+    // Active, unexpired holds block availability just like reservations. This
+    // is the ONLY hold integration point — the pure engine stays untouched.
+    loadActiveHoldRows(ctx, params.date),
   ])
 
   const tables: EngineTable[] = [...tableMap.values()].map((t) => ({
@@ -306,7 +311,10 @@ export async function loadAvailability(params: {
     tables,
     zones,
     combinations,
-    reservations,
+    // Synthetic hold reservations are appended so the engine treats a held
+    // table as occupied. Expired/cancelled/converted holds are already
+    // filtered out by holdsToBlockingReservations.
+    reservations: [...reservations, ...holdsToBlockingReservations(holdRows)],
   }
 
   const result = computeAvailability(
